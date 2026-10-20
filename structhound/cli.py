@@ -1,16 +1,19 @@
 """Command-line entry point for StructHound.
 
-Usage (planned):
+Usage:
     structhound parse <artifact> [--symbols <path>] [--json out.json]
 
-For now this is a scaffold: it wires up argument parsing and dispatches to the
-(not-yet-implemented) orchestration layer so the CLI shape is fixed early.
+Only pre-existing, authorized artifact files are read.
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+
+from structhound import artifacts
+from structhound.artifacts import minidump
+from structhound.report import console, schema
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,10 +35,49 @@ def build_parser() -> argparse.ArgumentParser:
     p_parse.add_argument(
         "--json",
         metavar="OUT",
-        help="write results as JSON to OUT instead of the console",
+        help="write results as JSON to OUT (use '-' for stdout) instead of the console",
     )
 
     return parser
+
+
+def _run_parse(args: argparse.Namespace) -> int:
+    try:
+        with open(args.artifact, "rb") as fh:
+            data = fh.read()
+    except OSError as exc:
+        print(f"error: cannot read artifact: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        fmt = artifacts.detect(data)
+    except artifacts.UnknownArtifact as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 3
+
+    if fmt == "minidump":
+        try:
+            dump = minidump.parse(data)
+        except minidump.MinidumpError as exc:
+            print(f"error: malformed minidump: {exc}", file=sys.stderr)
+            return 4
+        report = schema.from_minidump(args.artifact, len(data), dump)
+    else:  # pragma: no cover - guarded by detect()
+        print(f"error: no reader for format '{fmt}'", file=sys.stderr)
+        return 3
+
+    if args.json is not None:
+        payload = report.to_json()
+        if args.json == "-":
+            print(payload)
+        else:
+            with open(args.json, "w", encoding="utf-8") as out:
+                out.write(payload)
+            print(f"wrote {args.json}", file=sys.stderr)
+    else:
+        print(console.render(report))
+
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -48,9 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "parse":
-        # TODO(M1): dispatch to the orchestration layer.
-        print("parse: not yet implemented (scaffold)", file=sys.stderr)
-        return 2
+        return _run_parse(args)
 
     build_parser().print_help()
     return 0
