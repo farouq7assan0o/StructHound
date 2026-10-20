@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **M12 — Bit ranges in output.** `layout` now annotates bitfield members with their bit
+  range (`a : bits 0..0`) in console and carries `bit_offset`/`bit_width` in JSON. `read`
+  extracts each bitfield's actual value from its storage unit and shows the bit range and
+  value, in console and JSON (`bit_value`).
 - **M11 — Union & bitfield support.** The layout engine gained a `Union` type (members
   share offset 0) and a `BitField` type with MSVC-style bit packing (new storage unit on
   overflow, base-type change, or a plain member); `FieldInfo` now carries bit offset/width.

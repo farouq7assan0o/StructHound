@@ -79,6 +79,16 @@ def test_pack_inferred_so_computed_matches_recorded():
     assert layout.offset("B") == info.recorded_offsets["PACKED4"]["B"]
 
 
+def test_bitfields_decoded_from_pdb():
+    info = pdb.parse_pdb_bytes(_pdbgen.build_pdb_bytes(_pdbgen.build_tpi_bitfield()))
+    layout = info.structs["BITS"].layout(X64)
+    for name in ("a", "b", "c"):
+        assert layout.offset(name) == 0  # all share the one u32 storage unit
+    assert (layout.fields["a"].bit_offset, layout.fields["a"].bit_width) == (0, 1)
+    assert (layout.fields["b"].bit_offset, layout.fields["b"].bit_width) == (1, 3)
+    assert (layout.fields["c"].bit_offset, layout.fields["c"].bit_width) == (4, 4)
+
+
 def test_union_struct_modeled_as_inline_union():
     info = pdb.parse_pdb_bytes(_pdbgen.build_pdb_bytes(_pdbgen.build_tpi_pack_union()))
     # UNIONY's members share offset 0; they are folded into an inline union and both

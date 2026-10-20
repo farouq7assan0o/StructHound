@@ -78,3 +78,36 @@ def test_plain_member_closes_bitfield_unit():
     layout = s.layout(X64)
     assert layout.offset("flag") == 0
     assert layout.offset("n") == 4
+
+
+# --- reading bitfield values out of memory -------------------------------------
+
+def test_memory_read_extracts_bitfield_values():
+    import struct
+
+    from structhound import memory
+    from structhound.artifacts import minidump
+    from tests._fixtures import build_minidump_with_memory
+
+    va = 0x7FF8_0030_0000
+    # one u32 unit: a(1)=1, b(3)=0b101=5, c(4)=0b1010=10  ->  1 | (5<<1) | (10<<4)
+    unit = 1 | (5 << 1) | (10 << 4)
+    data = build_minidump_with_memory(va, struct.pack("<I", unit))
+    dump = minidump.parse(data)
+    reader = memory.MemoryReader(data, dump.memory_ranges)
+
+    layout = Struct(
+        "BITS", [("a", BitField(U32, 1)), ("b", BitField(U32, 3)), ("c", BitField(U32, 4))]
+    ).layout(X64)
+    vals = {v.name: v.bit_value for v in reader.read_struct(layout, va)}
+    assert vals == {"a": 1, "b": 5, "c": 10}
+
+
+def test_layout_console_shows_bit_ranges():
+    from structhound.recover.engine import Method, Provenance, ResolvedLayout
+    from structhound.report import console
+
+    layout = Struct("B", [("a", BitField(U32, 1)), ("b", BitField(U32, 3))]).layout(X64)
+    text = console.render_layout(ResolvedLayout(layout, Provenance(Method.SYMBOL, 1.0, "x")))
+    assert "bits 0..0" in text
+    assert "bits 1..3" in text

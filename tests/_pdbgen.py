@@ -163,6 +163,48 @@ def build_tpi_pack_union() -> bytes:
     return header + region
 
 
+LF_BITFIELD = 0x1205
+
+
+def build_tpi_bitfield() -> bytes:
+    """A TPI with one struct of three bitfields in a single u32 unit.
+
+        struct BITS { uint32_t a:1; uint32_t b:3; uint32_t c:4; }
+    """
+    records: list[bytes] = []
+
+    def bitfield(base_ti: int, length: int, position: int) -> bytes:
+        return _record(LF_BITFIELD, struct.pack("<IBB", base_ti, length, position))
+
+    records.append(bitfield(T_UINT4, 1, 0))  # 0x1000 a
+    records.append(bitfield(T_UINT4, 3, 1))  # 0x1001 b
+    records.append(bitfield(T_UINT4, 4, 4))  # 0x1002 c
+    fieldlist = (
+        _member("a", TYPE_INDEX_BEGIN + 0, 0)
+        + _member("b", TYPE_INDEX_BEGIN + 1, 0)
+        + _member("c", TYPE_INDEX_BEGIN + 2, 0)
+    )
+    records.append(_record(LF_FIELDLIST, fieldlist))  # 0x1003
+    records.append(
+        _record(
+            LF_STRUCTURE,
+            struct.pack("<HHIII", 3, 0, TYPE_INDEX_BEGIN + 3, 0, 0) + _numeric(4) + _cstr("BITS"),
+        )
+    )  # 0x1004
+
+    region = b"".join(records)
+    header = struct.pack(
+        "<IIIII",
+        20040203,
+        TPI_HEADER_SIZE,
+        TYPE_INDEX_BEGIN,
+        TYPE_INDEX_BEGIN + len(records),
+        len(region),
+    )
+    header += b"\x00" * (TPI_HEADER_SIZE - len(header))
+    return header + region
+
+
 def build_pdb_bytes(tpi: bytes | None = None) -> bytes:
     """Assemble a full MSF container with streams [old-dir, pdb-info, TPI]."""
     if tpi is None:

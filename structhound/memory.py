@@ -28,6 +28,9 @@ class FieldValue:
     size: int
     value: int | None  # integer value for 1/2/4/8-byte fields, else None
     hex: str
+    bit_offset: int | None = None
+    bit_width: int | None = None
+    bit_value: int | None = None  # value of just this bitfield's bits
 
 
 class MemoryReader:
@@ -98,5 +101,13 @@ class MemoryReader:
             value = int.from_bytes(raw, "little") if f.size in (1, 2, 4, 8) else None
             preview = raw[:16].hex() + ("..." if len(raw) > 16 else "")
             hexstr = ("0x" + preview) if preview else ""
-            out.append(FieldValue(f.name, f.offset, f.size, value, hexstr))
+            bit_value = None
+            if f.bit_width is not None and value is not None:
+                bit_value = (value >> (f.bit_offset or 0)) & ((1 << f.bit_width) - 1)
+            out.append(
+                FieldValue(
+                    f.name, f.offset, f.size, value, hexstr,
+                    f.bit_offset, f.bit_width, bit_value,
+                )
+            )
         return out

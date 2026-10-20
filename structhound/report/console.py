@@ -65,5 +65,9 @@ def render_layout(resolved: ResolvedLayout) -> str:
     lines.append("")
     lines.append(f"  {'offset':>8}  {'size':>6}  field")
     for info in layout.fields.values():
-        lines.append(f"  {info.offset:>8}  {info.size:>6}  {info.name}")
+        suffix = ""
+        if info.bit_width is not None:
+            hi = (info.bit_offset or 0) + info.bit_width - 1
+            suffix = f"  : bits {info.bit_offset}..{hi}"
+        lines.append(f"  {info.offset:>8}  {info.size:>6}  {info.name}{suffix}")
     return "\n".join(lines)

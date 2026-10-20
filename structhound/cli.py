@@ -189,7 +189,13 @@ def _layout_to_dict(resolved: engine.ResolvedLayout) -> dict:
             "detail": resolved.provenance.detail,
         },
         "fields": [
-            {"name": f.name, "offset": f.offset, "size": f.size}
+            {
+                "name": f.name,
+                "offset": f.offset,
+                "size": f.size,
+                "bit_offset": f.bit_offset,
+                "bit_width": f.bit_width,
+            }
             for f in layout.fields.values()
         ],
     }
@@ -392,7 +398,16 @@ def _run_read(args) -> int:
 
     def _fields_json(values):
         return [
-            {"name": v.name, "offset": v.offset, "size": v.size, "value": v.value, "hex": v.hex}
+            {
+                "name": v.name,
+                "offset": v.offset,
+                "size": v.size,
+                "value": v.value,
+                "hex": v.hex,
+                "bit_offset": v.bit_offset,
+                "bit_width": v.bit_width,
+                "bit_value": v.bit_value,
+            }
             for v in values
         ]
 
@@ -423,8 +438,14 @@ def _run_read(args) -> int:
             print(f"\n{prefix}{name} @ {addr:#x}")
             print(f"  {'offset':>6}  {'size':>4}  {'value':>20}  field")
             for v in values:
-                shown = f"{v.value:#x}" if v.value is not None else v.hex
-                print(f"  {v.offset:>6}  {v.size:>4}  {shown:>20}  {v.name}")
+                if v.bit_width is not None:
+                    hi = (v.bit_offset or 0) + v.bit_width - 1
+                    shown = f"{v.bit_value:#x}" if v.bit_value is not None else v.hex
+                    label = f"{v.name} (bits {v.bit_offset}..{hi})"
+                else:
+                    shown = f"{v.value:#x}" if v.value is not None else v.hex
+                    label = v.name
+                print(f"  {v.offset:>6}  {v.size:>4}  {shown:>20}  {label}")
     return 0
 
 

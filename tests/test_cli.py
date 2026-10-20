@@ -147,7 +147,8 @@ def test_layout_signature_mode(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["provenance"]["method"] == "signature"
     assert payload["provenance"]["confidence"] < 1.0
-    assert payload["fields"][0] == {"name": "Handle", "offset": 16, "size": 0}
+    f0 = payload["fields"][0]
+    assert (f0["name"], f0["offset"], f0["size"]) == ("Handle", 16, 0)
 
 
 def test_layout_signature_requires_code(tmp_path, capsys):
