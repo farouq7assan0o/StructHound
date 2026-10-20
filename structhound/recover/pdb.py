@@ -37,10 +37,12 @@ from structhound.recover.types import (
     X64,
     Arch,
     Array,
+    BitField,
     Pointer,
     Primitive,
     Struct,
     Type,
+    Union,
 )
 
 # --- CodeView / MSF constants --------------------------------------------------
@@ -284,10 +286,28 @@ class _TypeMapper:
         if leaf == LF_ARRAY:
             return self._resolve_array(body)
         if leaf == LF_UNION:
-            raise SymbolError("unions are not supported by the layout engine")
+            return self._resolve_union(ti, body)
         if leaf == LF_BITFIELD:
-            raise SymbolError("bitfield members are not supported")
+            # body: underlying-type(u32) length(u8 bits) position(u8). The layout engine
+            # repacks bits itself, so we keep only the base type and bit width.
+            underlying = _u32(body, 0)
+            length = body[4]
+            return BitField(self.resolve(underlying), length)
         raise SymbolError(f"unsupported type leaf {leaf:#06x} at index {ti:#x}")
+
+    def _resolve_union(self, ti: int, body: bytes) -> Union:
+        # body: count(u16) property(u16) field(u32) <numeric size> name
+        prop = _u16(body, 2)
+        field_list_ti = _u32(body, 4)
+        _size, off = _read_numeric(body, 8)
+        name, _ = _read_cstr(body, off)
+        if (prop & PROP_FWDREF) or field_list_ti == 0:
+            raise SymbolError(f"{name!r} is a forward-referenced union")
+        shell = Union(name, [])
+        self._cache[ti] = shell
+        members, _recorded = self._parse_field_list(field_list_ti)
+        shell.members = members
+        return shell
 
     def _resolve_array(self, body: bytes) -> Array:
         element_ti = _u32(body, 0)
@@ -315,10 +335,40 @@ class _TypeMapper:
         shell = Struct(name, [])
         self._cache[ti] = shell  # cache before filling, so self-references terminate
         members, recorded = self._parse_field_list(field_list_ti)
-        shell.pack = self._fit_pack(name, members, recorded)
-        shell.fields = members
+        grouped = self._group_inline_unions(members, recorded)
+        shell.pack = self._fit_pack(name, grouped, recorded)
+        shell.fields = grouped
         self._offsets[name] = recorded
         return shell
+
+    def _group_inline_unions(
+        self, members: list[tuple[str, Type]], recorded: dict[str, int]
+    ) -> list[tuple[str, Type]]:
+        """Fold runs of consecutive non-bitfield members that share an offset into an
+        inline :class:`Union`, so an anonymous union of scalars lays out correctly."""
+        grouped: list[tuple[str, Type]] = []
+        i = 0
+        while i < len(members):
+            name, t = members[i]
+            if isinstance(t, BitField):
+                grouped.append((name, t))
+                i += 1
+                continue
+            off = recorded.get(name)
+            run = [(name, t)]
+            j = i + 1
+            while j < len(members):
+                n2, t2 = members[j]
+                if isinstance(t2, BitField) or off is None or recorded.get(n2) != off:
+                    break
+                run.append((n2, t2))
+                j += 1
+            if len(run) > 1:
+                grouped.append((f"__union_{i}", Union("", run, inline=True)))
+            else:
+                grouped.append((name, t))
+            i = j
+        return grouped
 
     #: Packing values to try, natural alignment first.
     _PACK_CANDIDATES = (None, 8, 4, 2, 1)

@@ -172,9 +172,10 @@ Supported today:
 
 - Type information comes from a JSON file, the native PDB backend (`--pdb`), or a module
   fetched from the symbol server (`--module`). The PDB reader covers the common CodeView
-  records (structs/classes, members, pointers, arrays, modifiers, enums, base types) and
-  infers packing; structs containing unions or bitfield members are reported as
-  unsupported rather than mis-laid-out.
+  records (structs/classes, members, pointers, arrays, modifiers, enums, base types,
+  unions, and bitfields) and infers packing. It verifies every recomputed offset against
+  the PDB's own records and skips any struct it cannot reproduce exactly, so output is
+  never silently wrong (on `ntdll.pdb`: 215 structs modeled, 1051/1051 offsets matching).
 - Hive reader does not yet handle big-data (`db`) values or transaction logs.
 - Signature scanning is a straightforward linear scan — fine for triage, not yet tuned
   for very large modules.

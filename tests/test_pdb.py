@@ -79,11 +79,15 @@ def test_pack_inferred_so_computed_matches_recorded():
     assert layout.offset("B") == info.recorded_offsets["PACKED4"]["B"]
 
 
-def test_union_struct_is_skipped():
+def test_union_struct_modeled_as_inline_union():
     info = pdb.parse_pdb_bytes(_pdbgen.build_pdb_bytes(_pdbgen.build_tpi_pack_union()))
-    # UNIONY's members overlap (both at offset 0); no sequential layout reproduces that,
-    # so the backend refuses it rather than emitting wrong offsets.
-    assert "UNIONY" not in info.structs
+    # UNIONY's members share offset 0; they are folded into an inline union and both
+    # recompute to offset 0, matching the PDB's recorded offsets.
+    assert "UNIONY" in info.structs
+    layout = info.structs["UNIONY"].layout(X64)
+    assert layout.offset("X") == 0
+    assert layout.offset("Y") == 0
+    assert info.recorded_offsets["UNIONY"] == {"X": 0, "Y": 0}
 
 
 # --- SymbolSource + provider ---------------------------------------------------

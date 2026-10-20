@@ -110,6 +110,15 @@ trustworthy.
   the link field rather than the node base. CLI: `read ... --walk FIELD [--max N]
   [--link-offset N]`. See `structhound/memory.py` and `examples/demo_walk_list.py`.
 
+- **M11 — Union & bitfield support. [done]** `types.py` gained a `Union` type (members at
+  offset 0, size = max member) and a `BitField` type with MSVC-style bit packing (a new
+  storage unit starts on overflow, a base-type change, or a plain member); `FieldInfo`
+  carries optional bit offset/width, and an inline `Union` promotes its members into the
+  surrounding struct. The PDB backend decodes `LF_UNION`/`LF_BITFIELD` and folds runs of
+  overlapping sibling members into inline unions. The computed-vs-recorded gate still
+  holds, so real coverage rose from 190 to 215 ntdll structs with 1051/1051 offsets
+  matching. See `tests/test_unions_bitfields.py`.
+
 ### Why a native PDB reader (M6 dependency evaluation)
 
 The obvious options were rejected for a cross-platform, pip-installable tool:

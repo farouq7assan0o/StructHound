@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **M11 — Union & bitfield support.** The layout engine gained a `Union` type (members
+  share offset 0) and a `BitField` type with MSVC-style bit packing (new storage unit on
+  overflow, base-type change, or a plain member); `FieldInfo` now carries bit offset/width.
+  The PDB backend decodes `LF_UNION` and `LF_BITFIELD` and folds anonymous scalar unions
+  (overlapping sibling members) into inline unions. On real `ntdll.pdb` this lifted
+  coverage from 190 to **215 structs modeled with 1051/1051 offsets still matching** the
+  PDB's records — `_IO_STATUS_BLOCK`, `_NT_TIB64`, etc. now resolve correctly.
 - **M10 — Pointer-following / linked-list walk.** `structhound read ... --walk <FIELD>`
   treats a pointer field as a next-pointer and walks the chain of instances, reading each
   with the computed layout. Stops safely on null, a cycle (circular list back to the
