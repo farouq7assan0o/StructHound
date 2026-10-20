@@ -315,9 +315,37 @@ class _TypeMapper:
         shell = Struct(name, [])
         self._cache[ti] = shell  # cache before filling, so self-references terminate
         members, recorded = self._parse_field_list(field_list_ti)
+        shell.pack = self._fit_pack(name, members, recorded)
         shell.fields = members
         self._offsets[name] = recorded
         return shell
+
+    #: Packing values to try, natural alignment first.
+    _PACK_CANDIDATES = (None, 8, 4, 2, 1)
+
+    def _fit_pack(
+        self, name: str, members: list[tuple[str, Type]], recorded: dict[str, int]
+    ) -> int | None:
+        """Find the packing under which our layout reproduces the PDB's member offsets.
+
+        The PDB does not state a struct's ``#pragma pack`` directly, but our recomputed
+        layout must agree with the compiler's. We try natural alignment, then successively
+        tighter packing, and adopt the first that reproduces every recorded offset. If none
+        does, the struct overlaps its own members (a union) and the layout engine cannot
+        represent it, so we refuse it (a documented limitation) and the caller moves on.
+
+        The recorded offsets are used only as a gate here — the offsets StructHound emits
+        are always recomputed from types, so this stays correct on builds never seen.
+        """
+        probe = Struct(name, members)
+        for pack in self._PACK_CANDIDATES:
+            probe.pack = pack
+            fields = probe.layout(self._arch).fields
+            if all(fields[m].offset == off for m, off in recorded.items() if m in fields):
+                return pack
+        raise SymbolError(
+            f"{name!r} members cannot be laid out sequentially (union); not supported"
+        )
 
     def _parse_field_list(
         self, ti: int

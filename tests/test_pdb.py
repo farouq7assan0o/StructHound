@@ -65,6 +65,27 @@ def test_not_a_pdb_rejected():
         pdb.parse_pdb_bytes(b"this is not an MSF container")
 
 
+# --- pack inference and union rejection ----------------------------------------
+
+
+def test_pack_inferred_so_computed_matches_recorded():
+    info = pdb.parse_pdb_bytes(_pdbgen.build_pdb_bytes(_pdbgen.build_tpi_pack_union()))
+    # PACKED4 is #pragma pack(4): B sits at 4, not the natural 8. The engine must infer
+    # the packing so its recomputed offsets agree with the PDB's recorded ones.
+    assert "PACKED4" in info.structs
+    layout = info.structs["PACKED4"].layout(X64)
+    assert layout.offset("A") == 0
+    assert layout.offset("B") == 4
+    assert layout.offset("B") == info.recorded_offsets["PACKED4"]["B"]
+
+
+def test_union_struct_is_skipped():
+    info = pdb.parse_pdb_bytes(_pdbgen.build_pdb_bytes(_pdbgen.build_tpi_pack_union()))
+    # UNIONY's members overlap (both at offset 0); no sequential layout reproduces that,
+    # so the backend refuses it rather than emitting wrong offsets.
+    assert "UNIONY" not in info.structs
+
+
 # --- SymbolSource + provider ---------------------------------------------------
 
 

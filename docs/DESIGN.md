@@ -73,6 +73,18 @@ trustworthy.
   Slots in behind the unchanged `SymbolLayoutProvider`/`LayoutResolver`; the JSON loader
   remains as a fallback. CLI: `structhound layout <struct> --pdb <file>`. See
   `structhound/recover/pdb.py`, `tests/test_pdb.py`, and `tests/_pdbgen.py`.
+- **M7 — Symbol-server fetch + real-data validation. [done]** A minimal PE reader
+  (`structhound/pe.py`) extracts a module's CodeView `RSDS` record (PDB name, GUID, age);
+  a symbol-server client (`structhound/symsrv.py`) builds the Microsoft store URL and
+  downloads the PDB; `structhound layout --module <dll>` chains the two into the M6
+  backend. Running it against a real `ntdll.pdb` recomputed **897/897 member offsets
+  across 190 structs** with zero mismatches. Two findings from that run were folded back
+  in: the backend infers a struct's packing when natural alignment does not reproduce the
+  recorded layout (handling packed structs such as `_KTSS64`), and it rejects structs with
+  overlapping members (unions) instead of emitting wrong offsets. The recorded offsets are
+  used only as an ingest-time gate — emitted offsets are always recomputed, so cross-build
+  adaptation is unaffected. See `examples/validate_real_pdb.py` and
+  `tests/test_pe_symsrv.py`.
 
 ### Why a native PDB reader (M6 dependency evaluation)
 

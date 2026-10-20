@@ -66,9 +66,21 @@ structhound layout EXAMPLE_STRUCT --symbols examples/example_build_26100.json
 # From a real Windows PDB (native backend — offsets are recomputed, not read):
 structhound layout EXAMPLE_STRUCT --pdb path/to/module.pdb
 
+# From a live module: fetch its PDB from Microsoft's symbol server, then resolve:
+structhound layout _UNICODE_STRING --module C:\Windows\System32\ntdll.dll
+
 # From code, when no symbols exist (confidence-scored):
 structhound layout EXAMPLE_STRUCT --signatures sigs.json --code module.bin
 ```
+
+### Proof on real data
+
+`python examples/validate_real_pdb.py` runs the whole chain against a real Microsoft PDB:
+it reads `ntdll.dll`'s debug id, downloads the matching `ntdll.pdb`, recomputes every
+struct's field offsets from types, and checks them against the PDB's own records —
+**190 structs, 897/897 offsets correct**, including a packed struct (`_KTSS64`). Because
+StructHound only ever emits *recomputed* offsets, that agreement is what it would carry
+onto a build no static offset table has seen.
 
 Example output:
 
@@ -122,11 +134,11 @@ Supported today:
 
 ## Limitations & roadmap
 
-- Type information comes from either a JSON file or the native PDB backend (`--pdb`). The
-  PDB reader covers the common CodeView records (structs/classes, members, pointers,
-  arrays, modifiers, enums, base types); unions and bitfield members are reported as
-  unsupported rather than mis-laid-out. Symbol-server download of a PDB from a module's
-  debug directory is not yet implemented (point `--pdb` at a local file).
+- Type information comes from a JSON file, the native PDB backend (`--pdb`), or a module
+  fetched from the symbol server (`--module`). The PDB reader covers the common CodeView
+  records (structs/classes, members, pointers, arrays, modifiers, enums, base types) and
+  infers packing; structs containing unions or bitfield members are reported as
+  unsupported rather than mis-laid-out.
 - Hive reader does not yet handle big-data (`db`) values or transaction logs.
 - Signature scanning is a straightforward linear scan — fine for triage, not yet tuned
   for very large modules.

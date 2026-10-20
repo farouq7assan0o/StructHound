@@ -155,3 +155,47 @@ def build_hive() -> bytes:
 
     struct.pack_into("<I", buf, 0x24, root_nk_off)  # base block root cell offset
     return bytes(buf)
+
+
+# --- PE module with a CodeView (RSDS) debug record -----------------------------
+
+def build_pe_with_pdb(
+    *,
+    pdb_name: str = "ntdll.pdb",
+    guid: bytes = bytes(range(16)),
+    age: int = 1,
+) -> bytes:
+    """Return a minimal PE32+ whose debug directory points at a PDB (RSDS record)."""
+    buf = bytearray(0x1500)
+    e_lfanew = 0x80
+
+    buf[0:2] = b"MZ"
+    struct.pack_into("<I", buf, 0x3C, e_lfanew)
+    buf[e_lfanew : e_lfanew + 4] = b"PE\x00\x00"
+
+    coff = e_lfanew + 4
+    opt_size = 0xF0
+    struct.pack_into("<HH", buf, coff, 0x8664, 1)  # machine, num_sections
+    struct.pack_into("<H", buf, coff + 16, opt_size)
+
+    opt = coff + 20
+    struct.pack_into("<H", buf, opt, 0x20B)  # PE32+ magic
+    struct.pack_into("<I", buf, opt + 108, 16)  # NumberOfRvaAndSizes
+    dirs = opt + 112
+    struct.pack_into("<II", buf, dirs + 6 * 8, 0x1000, 28)  # debug dir: RVA, size
+
+    # one section: RVA 0x1000..0x2000 maps to file 0x400
+    sec = opt + opt_size
+    buf[sec : sec + 8] = b".rdata\x00\x00"
+    struct.pack_into("<IIII", buf, sec + 8, 0x1000, 0x1000, 0x1000, 0x400)
+
+    # IMAGE_DEBUG_DIRECTORY at file 0x400
+    dbg = 0x400
+    cv_ptr = 0x420
+    cv = b"RSDS" + guid + struct.pack("<I", age) + pdb_name.encode("latin-1") + b"\x00"
+    struct.pack_into("<I", buf, dbg + 12, 2)  # type = CODEVIEW
+    struct.pack_into("<I", buf, dbg + 16, len(cv))  # SizeOfData
+    struct.pack_into("<I", buf, dbg + 24, cv_ptr)  # PointerToRawData
+    buf[cv_ptr : cv_ptr + len(cv)] = cv
+
+    return bytes(buf)

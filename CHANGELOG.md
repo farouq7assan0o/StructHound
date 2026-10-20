@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **M7 — Symbol-server fetch + real-data validation.** A minimal PE reader
+  (`structhound.pe`) extracts a module's CodeView PDB id (GUID + age), a symbol-server
+  client (`structhound.symsrv`) downloads the matching PDB from Microsoft's public store,
+  and `structhound layout <struct> --module <dll>` ties them together: it fetches a
+  module's PDB and resolves a struct in one step. Validated against a real `ntdll.pdb`:
+  190 structs modeled, **897/897 field offsets recomputed correctly** vs. the PDB's own
+  records. Two refinements fell out of that run — packing is inferred when natural
+  alignment doesn't reproduce the recorded layout (so packed structs like `_KTSS64` are
+  correct), and structs with overlapping members (unions) are detected and skipped rather
+  than reported with wrong offsets. See `examples/validate_real_pdb.py`.
 - **M6 — Native PDB symbol backend.** A real `SymbolSource` (`structhound.recover.pdb`)
   that reads struct type information directly from a Windows PDB: it parses the MSF
   container and TPI stream, decodes the CodeView type records (structures/classes,

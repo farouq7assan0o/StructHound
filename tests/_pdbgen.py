@@ -119,9 +119,54 @@ def build_tpi_stream() -> bytes:
     return header + region
 
 
-def build_pdb_bytes() -> bytes:
+def build_tpi_pack_union() -> bytes:
+    """A TPI with two tricky structs, to exercise pack inference and union rejection.
+
+        struct PACKED4 { uint32_t A; uint64_t B; }  // B recorded @4 => #pragma pack(4)
+        struct UNIONY  { uint32_t X; uint32_t Y; }   // X and Y both @0 => a union
+    """
+    records: list[bytes] = []
+
+    # 0x1000: field list for PACKED4 (B at offset 4, not the natural 8)
+    records.append(_record(LF_FIELDLIST, _member("A", T_UINT4, 0) + _member("B", T_UQUAD, 4)))
+    # 0x1001: struct PACKED4
+    records.append(
+        _record(
+            LF_STRUCTURE,
+            struct.pack("<HHIII", 2, 0, TYPE_INDEX_BEGIN + 0, 0, 0)
+            + _numeric(12)
+            + _cstr("PACKED4"),
+        )
+    )
+    # 0x1002: field list for UNIONY (X and Y both at offset 0)
+    records.append(_record(LF_FIELDLIST, _member("X", T_UINT4, 0) + _member("Y", T_UINT4, 0)))
+    # 0x1003: struct UNIONY
+    records.append(
+        _record(
+            LF_STRUCTURE,
+            struct.pack("<HHIII", 2, 0, TYPE_INDEX_BEGIN + 2, 0, 0)
+            + _numeric(4)
+            + _cstr("UNIONY"),
+        )
+    )
+
+    region = b"".join(records)
+    header = struct.pack(
+        "<IIIII",
+        20040203,
+        TPI_HEADER_SIZE,
+        TYPE_INDEX_BEGIN,
+        TYPE_INDEX_BEGIN + len(records),
+        len(region),
+    )
+    header += b"\x00" * (TPI_HEADER_SIZE - len(header))
+    return header + region
+
+
+def build_pdb_bytes(tpi: bytes | None = None) -> bytes:
     """Assemble a full MSF container with streams [old-dir, pdb-info, TPI]."""
-    tpi = build_tpi_stream()
+    if tpi is None:
+        tpi = build_tpi_stream()
     streams = [b"", b"", tpi]
 
     def nblocks(size: int) -> int:

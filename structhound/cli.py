@@ -56,6 +56,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Windows PDB file to read struct type info from (native backend)",
     )
     p_layout.add_argument(
+        "--module",
+        metavar="PATH",
+        help="a PE module (.dll/.exe): fetch its PDB from the symbol server, then resolve",
+    )
+    p_layout.add_argument(
+        "--download-dir",
+        metavar="DIR",
+        help="where to cache PDBs fetched for --module (default: ./.symbols)",
+    )
+    p_layout.add_argument(
         "--signatures",
         metavar="PATH",
         help="signature file for offset recovery (requires --code)",
@@ -197,6 +207,32 @@ def _pdb_layout(args):
     )
 
 
+def _module_layout(args):
+    from structhound import pe, symsrv
+
+    try:
+        ref = pe.read_pdb_ref_file(args.module)
+    except OSError as exc:
+        print(f"error: cannot read module: {exc}", file=sys.stderr)
+        return 2
+    except pe.PEError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 4
+
+    dest = args.download_dir or os.path.join(os.getcwd(), ".symbols")
+    try:
+        pdb_path = symsrv.download_pdb(ref, dest)
+    except symsrv.SymbolServerError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 5
+    print(f"fetched {ref.pdb_name} ({ref.signature}) -> {pdb_path}", file=sys.stderr)
+
+    # Hand off to the PDB path exactly as if the user had passed --pdb.
+    args.pdb = pdb_path
+    args.build = args.build or ref.signature
+    return _pdb_layout(args)
+
+
 def _signature_layout(args):
     if not args.code:
         print("error: --signatures requires --code", file=sys.stderr)
@@ -225,15 +261,17 @@ def _signature_layout(args):
 
 
 def _run_layout(args) -> int:
-    if not args.symbols and not args.pdb and not args.signatures:
+    if not args.symbols and not args.pdb and not args.module and not args.signatures:
         print(
-            "error: provide --symbols, --pdb, or --signatures with --code",
+            "error: provide --symbols, --pdb, --module, or --signatures with --code",
             file=sys.stderr,
         )
         return 2
 
     try:
-        if args.pdb:
+        if args.module:
+            resolved = _module_layout(args)
+        elif args.pdb:
             resolved = _pdb_layout(args)
         elif args.symbols:
             resolved = _symbol_layout(args)
