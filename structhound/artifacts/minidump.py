@@ -21,6 +21,8 @@ MINIDUMP_SIGNATURE = 0x504D444D  # b"MDMP" little-endian
 
 # Stream type identifiers we care about (full set is larger).
 STREAM_MODULE_LIST = 4
+STREAM_MEMORY_LIST = 5
+STREAM_MEMORY64_LIST = 9
 
 _HEADER = struct.Struct("<4sIIIIIQ")  # sig, version, n_streams, dir_rva, checksum, ts, flags
 _DIRECTORY = struct.Struct("<III")  # stream_type, data_size, rva
@@ -48,12 +50,22 @@ class Module:
 
 
 @dataclass
+class MemoryRange:
+    """A span of process virtual memory captured in the dump."""
+
+    va: int  # virtual address where this span starts
+    size: int
+    file_offset: int  # where the bytes live in the dump file
+
+
+@dataclass
 class Minidump:
     version: int
     stream_count: int
     timestamp: int
     flags: int
     modules: list[Module] = field(default_factory=list)
+    memory_ranges: list[MemoryRange] = field(default_factory=list)
 
 
 def is_minidump(data: bytes) -> bool:
@@ -128,8 +140,46 @@ def parse(data: bytes) -> Minidump:
         stream_type, _data_size, rva = _DIRECTORY.unpack_from(data, entry_off)
         if stream_type == STREAM_MODULE_LIST:
             dump.modules = _parse_module_list(data, rva)
+        elif stream_type == STREAM_MEMORY_LIST:
+            dump.memory_ranges += _parse_memory_list(data, rva)
+        elif stream_type == STREAM_MEMORY64_LIST:
+            dump.memory_ranges += _parse_memory64_list(data, rva)
 
     return dump
+
+
+def _parse_memory_list(data: bytes, rva: int) -> list[MemoryRange]:
+    """MINIDUMP_MEMORY_LIST: count(u32), then [StartVA(u64), DataSize(u32), Rva(u32)]."""
+    if rva + 4 > len(data):
+        raise MinidumpError("memory list RVA out of bounds")
+    (count,) = struct.unpack_from("<I", data, rva)
+    ranges: list[MemoryRange] = []
+    off = rva + 4
+    for _ in range(count):
+        va, size, data_rva = struct.unpack_from("<QII", data, off)
+        ranges.append(MemoryRange(va=va, size=size, file_offset=data_rva))
+        off += 16
+    return ranges
+
+
+def _parse_memory64_list(data: bytes, rva: int) -> list[MemoryRange]:
+    """MINIDUMP_MEMORY64_LIST: count(u64), base_rva(u64), then [StartVA(u64), Size(u64)].
+
+    Unlike the 32-bit list, the bytes are stored contiguously from base_rva, so each
+    range's file offset is the running sum of the preceding ranges' sizes.
+    """
+    if rva + 16 > len(data):
+        raise MinidumpError("memory64 list RVA out of bounds")
+    count, base_rva = struct.unpack_from("<QQ", data, rva)
+    ranges: list[MemoryRange] = []
+    off = rva + 16
+    file_off = base_rva
+    for _ in range(count):
+        va, size = struct.unpack_from("<QQ", data, off)
+        ranges.append(MemoryRange(va=va, size=size, file_offset=file_off))
+        file_off += size
+        off += 16
+    return ranges
 
 
 def _parse_module_list(data: bytes, rva: int) -> list[Module]:

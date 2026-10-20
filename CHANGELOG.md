@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **M9 — Read struct instances from a dump.** The minidump reader now parses memory
+  streams (`MemoryListStream`/`Memory64ListStream`) into virtual-address ranges, and a
+  memory reader (`structhound.memory`) applies a computed layout to read a struct instance
+  straight out of the dump — the forensic equivalent of WinDbg's `dt type address`, but
+  with offsets recomputed from types so they stay correct across builds. CLI:
+  `structhound read <dump> <struct> --at 0x... [--pdb/--symbols/--module ...]`. See
+  `examples/demo_read_from_dump.py`.
 - **M8 — Cross-build struct diff.** `structhound diff --a <old> --b <new>` reports, per
   structure, exactly what changed between two builds: fields added/removed, fields that
   moved to a new offset, fields that resized, and overall size — with offsets recomputed

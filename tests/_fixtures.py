@@ -64,6 +64,25 @@ def build_minidump(
     return bytes(buf)
 
 
+def build_minidump_with_memory(va: int, blob: bytes) -> bytes:
+    """A minidump whose single MemoryListStream exposes `blob` at virtual address `va`."""
+    header = struct.Struct("<4sIIIIIQ")
+    directory = struct.Struct("<III")
+
+    dir_rva = header.size  # 32
+    mem_list_rva = dir_rva + directory.size  # 44
+    desc_off = mem_list_rva + 4  # after count u32
+    blob_rva = desc_off + 16  # after one MINIDUMP_MEMORY_DESCRIPTOR
+
+    buf = bytearray()
+    buf += header.pack(b"MDMP", 42899, 1, dir_rva, 0, 0, 0)
+    buf += directory.pack(5, 4 + 16, mem_list_rva)  # STREAM_MEMORY_LIST
+    buf += struct.pack("<I", 1)  # one range
+    buf += struct.pack("<QII", va, len(blob), blob_rva)
+    buf += blob
+    return bytes(buf)
+
+
 # --- registry hive -------------------------------------------------------------
 
 def _round8(n: int) -> int:

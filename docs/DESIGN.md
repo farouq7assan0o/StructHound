@@ -94,6 +94,15 @@ trustworthy.
   CLI: `structhound diff --a <old> --b <new> [--struct NAME]`. See
   `examples/demo_cross_build_diff.py` and `tests/test_diff.py`.
 
+- **M9 — Read struct instances from a dump. [done]** Closes the loop from layout to
+  artifact. The minidump reader parses `MemoryListStream` and `Memory64ListStream` into
+  `MemoryRange`s (virtual address -> file offset), and `structhound/memory.py` maps a VA to
+  dump bytes and applies a resolved layout, decoding each field (1/2/4/8 bytes -> integer,
+  else raw). CLI: `structhound read <dump> <struct> --at <addr>` with the same layout
+  sources as `layout`. It reads whatever struct the analyst names, at an address they
+  give, from an authorized dump — a structural `dt`, not a credential extractor. See
+  `structhound/memory.py`, `examples/demo_read_from_dump.py`, `tests/test_memory.py`.
+
 ### Why a native PDB reader (M6 dependency evaluation)
 
 The obvious options were rejected for a cross-platform, pip-installable tool:

@@ -73,6 +73,15 @@ structhound layout _UNICODE_STRING --module C:\Windows\System32\ntdll.dll
 structhound layout EXAMPLE_STRUCT --signatures sigs.json --code module.bin
 ```
 
+### Read a struct instance out of a dump
+
+```bash
+# Like WinDbg's `dt type address`, but offsets are recomputed from types:
+structhound read crash.dmp _SOME_STRUCT --at 0x7ff8004200a0 --module C:\path\to\mod.dll
+```
+
+Try `python examples/demo_read_from_dump.py` for a self-contained run.
+
 ### Diff a structure across builds
 
 ```bash

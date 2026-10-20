@@ -83,6 +83,25 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", metavar="OUT", help="write JSON to OUT (use '-' for stdout)"
     )
 
+    p_read = sub.add_parser(
+        "read", help="read a struct instance out of a dump at an address (like `dt`)"
+    )
+    p_read.add_argument("dump", help="path to an authorized memory dump (minidump)")
+    p_read.add_argument("struct", help="name of the struct to read")
+    p_read.add_argument(
+        "--at", metavar="ADDR", required=True, help="virtual address of the instance (e.g. 0x...)"
+    )
+    # layout source (same options as `layout`)
+    p_read.add_argument("--symbols", metavar="PATH", help="type-description (symbol) file")
+    p_read.add_argument("--pdb", metavar="PATH", help="Windows PDB file")
+    p_read.add_argument("--module", metavar="PATH", help="PE module: fetch its PDB, then read")
+    p_read.add_argument("--download-dir", metavar="DIR", help="PDB cache dir for --module")
+    p_read.add_argument("--signatures", metavar="PATH", help="signature file (requires --code)")
+    p_read.add_argument("--code", metavar="PATH", help="code blob for --signatures")
+    p_read.add_argument("--arch", default="x64", help="architecture (x64 or x86)")
+    p_read.add_argument("--build", help="override the build id")
+    p_read.add_argument("--json", metavar="OUT", help="write JSON to OUT (use '-' for stdout)")
+
     p_diff = sub.add_parser(
         "diff", help="diff struct layouts between two builds (PDB or symbol JSON)"
     )
@@ -271,23 +290,22 @@ def _signature_layout(args):
     )
 
 
-def _run_layout(args) -> int:
+def _resolve_layout(args):
+    """Resolve a ResolvedLayout from whichever source flag was given, or an int error code."""
     if not args.symbols and not args.pdb and not args.module and not args.signatures:
         print(
             "error: provide --symbols, --pdb, --module, or --signatures with --code",
             file=sys.stderr,
         )
         return 2
-
     try:
         if args.module:
-            resolved = _module_layout(args)
-        elif args.pdb:
-            resolved = _pdb_layout(args)
-        elif args.symbols:
-            resolved = _symbol_layout(args)
-        else:
-            resolved = _signature_layout(args)
+            return _module_layout(args)
+        if args.pdb:
+            return _pdb_layout(args)
+        if args.symbols:
+            return _symbol_layout(args)
+        return _signature_layout(args)
     except engine.LayoutUnavailable as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 4
@@ -295,6 +313,9 @@ def _run_layout(args) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
+
+def _run_layout(args) -> int:
+    resolved = _resolve_layout(args)
     if isinstance(resolved, int):  # an error code bubbled up from a helper
         return resolved
 
@@ -308,6 +329,73 @@ def _run_layout(args) -> int:
             print(f"wrote {args.json}", file=sys.stderr)
     else:
         print(console.render_layout(resolved))
+    return 0
+
+
+def _run_read(args) -> int:
+    from structhound import memory
+    from structhound.artifacts import minidump
+
+    try:
+        va = int(args.at, 0)
+    except ValueError:
+        print(f"error: invalid address {args.at!r}", file=sys.stderr)
+        return 2
+
+    try:
+        with open(args.dump, "rb") as fh:
+            data = fh.read()
+    except OSError as exc:
+        print(f"error: cannot read dump: {exc}", file=sys.stderr)
+        return 2
+    if not minidump.is_minidump(data):
+        print("error: not a minidump (only minidumps carry memory today)", file=sys.stderr)
+        return 3
+    try:
+        dump = minidump.parse(data)
+    except minidump.MinidumpError as exc:
+        print(f"error: malformed minidump: {exc}", file=sys.stderr)
+        return 4
+    if not dump.memory_ranges:
+        print("error: this dump contains no memory ranges to read", file=sys.stderr)
+        return 4
+
+    resolved = _resolve_layout(args)
+    if isinstance(resolved, int):
+        return resolved
+
+    reader = memory.MemoryReader(data, dump.memory_ranges)
+    try:
+        values = reader.read_struct(resolved.layout, va)
+    except memory.MemoryError_ as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 4
+
+    if args.json is not None:
+        payload = json.dumps(
+            {
+                "struct": resolved.layout.name,
+                "address": va,
+                "fields": [
+                    {"name": v.name, "offset": v.offset, "size": v.size,
+                     "value": v.value, "hex": v.hex}
+                    for v in values
+                ],
+            },
+            indent=2,
+        )
+        if args.json == "-":
+            print(payload)
+        else:
+            with open(args.json, "w", encoding="utf-8") as out:
+                out.write(payload)
+            print(f"wrote {args.json}", file=sys.stderr)
+    else:
+        print(f"{resolved.layout.name} @ {va:#x}  (source: {resolved.provenance.method.value})")
+        print(f"  {'offset':>6}  {'size':>4}  {'value':>20}  field")
+        for v in values:
+            shown = f"{v.value:#x}" if v.value is not None else v.hex
+            print(f"  {v.offset:>6}  {v.size:>4}  {shown:>20}  {v.name}")
     return 0
 
 
@@ -374,6 +462,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "layout":
         return _run_layout(args)
+
+    if args.command == "read":
+        return _run_read(args)
 
     if args.command == "diff":
         return _run_diff(args)
