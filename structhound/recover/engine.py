@@ -18,6 +18,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from abc import ABC, abstractmethod
+
+from structhound.recover.signatures import SignatureError, StructSignatureSet, recover_struct
 from structhound.recover.symbols import SymbolError, SymbolSource
 from structhound.recover.types import FieldInfo, StructLayout, arch_by_name
 
@@ -107,6 +110,74 @@ class SymbolLayoutProvider(LayoutProvider):
                 f"computed from type information for build {build}",
             ),
         )
+
+
+class CodeSource(ABC):
+    """Provides the module code bytes signature recovery scans over."""
+
+    @abstractmethod
+    def get_code(self, module: str, build: str) -> bytes:
+        ...
+
+
+class DictCodeSource(CodeSource):
+    def __init__(self) -> None:
+        self._store: dict[tuple[str, str], bytes] = {}
+
+    def register(self, module: str, build: str, code: bytes) -> None:
+        self._store[(module, build)] = code
+
+    def get_code(self, module: str, build: str) -> bytes:
+        try:
+            return self._store[(module, build)]
+        except KeyError:
+            raise LayoutUnavailable(
+                f"no code available for {module!r} build {build!r}"
+            ) from None
+
+
+class SignatureLayoutProvider(LayoutProvider):
+    """Recovers offsets by scanning code for instruction signatures.
+
+    Produces a *partial* layout (only the fields whose signatures matched) with
+    confidence < 1.0. ``total_size`` is left as 0 because signatures reveal offsets, not
+    the full structure extent. The layout's confidence is the weakest recovered field's.
+    """
+
+    def __init__(self, sigset: StructSignatureSet, code_source: CodeSource):
+        self._sigset = sigset
+        self._code = code_source
+
+    def layout(self, module: str, build: str, struct: str, arch: str = "x64") -> ResolvedLayout:
+        try:
+            field_sigs = self._sigset.fields_for(struct)
+        except SignatureError as exc:
+            raise LayoutUnavailable(str(exc)) from exc
+
+        code = self._code.get_code(module, build)  # may raise LayoutUnavailable
+        resolved, unresolved = recover_struct(code, field_sigs)
+        if not resolved:
+            raise LayoutUnavailable(
+                f"no signatures matched for {struct!r} in {module!r} build {build!r}"
+            )
+
+        fields = {
+            name: FieldInfo(name, rf.offset, 0) for name, rf in resolved.items()
+        }
+        overall = min(rf.confidence for rf in resolved.values())
+        detail_bits = [f"{n}@{rf.offset:#x} (conf {rf.confidence})" for n, rf in resolved.items()]
+        detail = "; ".join(detail_bits)
+        if unresolved:
+            detail += f"; unresolved: {', '.join(unresolved)}"
+
+        computed = StructLayout(
+            name=struct,
+            arch=arch,
+            total_size=0,
+            align=0,
+            fields=fields,
+        )
+        return ResolvedLayout(computed, Provenance(Method.SIGNATURE, overall, detail))
 
 
 class LayoutResolver:

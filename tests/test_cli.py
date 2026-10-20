@@ -93,3 +93,43 @@ def test_layout_unknown_struct(tmp_path, capsys):
     f.write_text(_SYMBOL_DOC)
     assert main(["layout", "NOPE", "--symbols", str(f)]) == 4
     assert "no type info" in capsys.readouterr().err
+
+
+def test_layout_requires_a_mode(capsys):
+    assert main(["layout", "EXAMPLE_STRUCT"]) == 2
+    assert "--symbols" in capsys.readouterr().err
+
+
+_SIG_DOC = """
+{
+  "module": "example.dll",
+  "arch": "x64",
+  "structs": {
+    "EXAMPLE_STRUCT": {
+      "fields": {
+        "Handle": [{"pattern": "48 8B 81 ?? ?? ?? ??", "disp_at": 3, "disp_size": 4}]
+      }
+    }
+  }
+}
+"""
+
+
+def test_layout_signature_mode(tmp_path, capsys):
+    sig = tmp_path / "sigs.json"
+    sig.write_text(_SIG_DOC)
+    code = tmp_path / "code.bin"
+    # nops + mov rax,[rcx+0x10]
+    code.write_bytes(b"\x90\x90\x90\x90" + bytes([0x48, 0x8B, 0x81]) + (0x10).to_bytes(4, "little"))
+    assert main(["layout", "EXAMPLE_STRUCT", "--signatures", str(sig), "--code", str(code), "--json", "-"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["provenance"]["method"] == "signature"
+    assert payload["provenance"]["confidence"] < 1.0
+    assert payload["fields"][0] == {"name": "Handle", "offset": 16, "size": 0}
+
+
+def test_layout_signature_requires_code(tmp_path, capsys):
+    sig = tmp_path / "sigs.json"
+    sig.write_text(_SIG_DOC)
+    assert main(["layout", "EXAMPLE_STRUCT", "--signatures", str(sig)]) == 2
+    assert "requires --code" in capsys.readouterr().err

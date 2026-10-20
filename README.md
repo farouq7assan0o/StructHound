@@ -51,6 +51,11 @@ input artifact ──▶ structure recovery ──▶ typed view ──▶ decry
   information (so it adapts across Windows builds) instead of trusting a static offset
   table; `structhound layout <struct> --symbols <types.json>`. Try
   `python examples/demo_across_builds.py` for the before/after.
+- **M3 (done):** signature-based fallback for when symbols are unavailable — recovers
+  offsets from instruction displacements in code, with a confidence score, behind the
+  resolver chain symbol -> hardcoded -> signature;
+  `structhound layout <struct> --signatures <sigs.json> --code <blob>`. Try
+  `python examples/demo_signature.py`.
 
 Type information currently comes from a JSON type-description file — the format a native
 PDB/DIA extraction step would emit. A PDB backend is the next increment and only has to

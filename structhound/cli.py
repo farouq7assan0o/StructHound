@@ -15,7 +15,7 @@ import json
 
 from structhound import artifacts
 from structhound.artifacts import minidump
-from structhound.recover import engine, symbols
+from structhound.recover import engine, signatures, symbols
 from structhound.report import console, schema
 
 
@@ -48,8 +48,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_layout.add_argument(
         "--symbols",
         metavar="PATH",
-        required=True,
         help="type-description (symbol) file to compute the layout from",
+    )
+    p_layout.add_argument(
+        "--signatures",
+        metavar="PATH",
+        help="signature file for offset recovery (requires --code)",
+    )
+    p_layout.add_argument(
+        "--code",
+        metavar="PATH",
+        help="module code blob to scan for signatures (requires --signatures)",
     )
     p_layout.add_argument("--arch", default="x64", help="architecture (x64 or x86)")
     p_layout.add_argument(
@@ -120,35 +129,79 @@ def _layout_to_dict(resolved: engine.ResolvedLayout) -> dict:
     }
 
 
-def _run_layout(args) -> int:
+def _load_json(path: str, label: str) -> dict | int:
     try:
-        with open(args.symbols, encoding="utf-8") as fh:
-            doc = json.load(fh)
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
     except OSError as exc:
-        print(f"error: cannot read symbol file: {exc}", file=sys.stderr)
+        print(f"error: cannot read {label}: {exc}", file=sys.stderr)
         return 2
     except json.JSONDecodeError as exc:
-        print(f"error: invalid symbol file: {exc}", file=sys.stderr)
+        print(f"error: invalid {label}: {exc}", file=sys.stderr)
         return 2
 
+
+def _symbol_layout(args):
+    doc = _load_json(args.symbols, "symbol file")
+    if isinstance(doc, int):
+        return doc
     module = doc.get("module", "<unknown>")
     build = args.build or str(doc.get("build", ""))
-
     try:
         source = symbols.source_from_doc(doc)
+        return engine.SymbolLayoutProvider(source).layout(
+            module, build, args.struct, args.arch
+        )
     except symbols.SymbolError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 4
 
-    provider = engine.SymbolLayoutProvider(source)
+
+def _signature_layout(args):
+    if not args.code:
+        print("error: --signatures requires --code", file=sys.stderr)
+        return 2
+    doc = _load_json(args.signatures, "signature file")
+    if isinstance(doc, int):
+        return doc
     try:
-        resolved = provider.layout(module, build, args.struct, args.arch)
+        code = open(args.code, "rb").read()
+    except OSError as exc:
+        print(f"error: cannot read code blob: {exc}", file=sys.stderr)
+        return 2
+    try:
+        sigset = signatures.signatureset_from_doc(doc)
+    except signatures.SignatureError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 4
+    module = sigset.module
+    build = args.build or str(doc.get("build", ""))
+    code_source = engine.DictCodeSource()
+    code_source.register(module, build, code)
+    return engine.SignatureLayoutProvider(sigset, code_source).layout(
+        module, build, args.struct, args.arch
+    )
+
+
+def _run_layout(args) -> int:
+    if not args.symbols and not args.signatures:
+        print("error: provide --symbols, or --signatures with --code", file=sys.stderr)
+        return 2
+
+    try:
+        if args.symbols:
+            resolved = _symbol_layout(args)
+        else:
+            resolved = _signature_layout(args)
     except engine.LayoutUnavailable as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 4
     except ValueError as exc:  # unknown arch
         print(f"error: {exc}", file=sys.stderr)
         return 2
+
+    if isinstance(resolved, int):  # an error code bubbled up from a helper
+        return resolved
 
     if args.json is not None:
         payload = json.dumps(_layout_to_dict(resolved), indent=2)

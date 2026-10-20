@@ -46,9 +46,13 @@ trustworthy.
   and `structhound layout`. The across-builds claim is proven by
   `examples/demo_across_builds.py` and `tests/test_recover.py`: a field inserted between
   builds 22621 and 26100 breaks the hardcoded table while the symbol path stays correct.
-- **M3 — Signature fallback + confidence.** Recover the same structure with symbols
-  disabled; report confidence < 1.0. Slots in as a third provider after the hardcoded
-  fallback in `LayoutResolver`.
+- **M3 — Signature fallback + confidence. [done]** A wildcard byte-pattern scanner that
+  recovers field offsets from instruction displacements in a code blob, a confidence
+  model driven by agreement and corroboration (capped at 0.95), and a
+  `SignatureLayoutProvider` + `CodeSource` that slot in as the third provider in
+  `LayoutResolver` (symbol -> hardcoded -> signature). CLI:
+  `structhound layout <struct> --signatures <sigs.json> --code <blob>`. See
+  `examples/demo_signature.py`.
 - **M4 — Second artifact source + second structure.** Show the recovery engine
   generalizes beyond one case.
 - **M5 — Polish.** Docs, test fixtures (synthetic/lab-generated), demo writeup.
