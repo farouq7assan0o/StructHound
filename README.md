@@ -63,6 +63,9 @@ structhound parse capture.dmp --json -   # machine-readable output
 # From type information (exact, build-resilient):
 structhound layout EXAMPLE_STRUCT --symbols examples/example_build_26100.json
 
+# From a real Windows PDB (native backend — offsets are recomputed, not read):
+structhound layout EXAMPLE_STRUCT --pdb path/to/module.pdb
+
 # From code, when no symbols exist (confidence-scored):
 structhound layout EXAMPLE_STRUCT --signatures sigs.json --code module.bin
 ```
@@ -94,8 +97,11 @@ fixed arrays, pointer sizes per architecture, and `#pragma pack`. Three provider
 it, tried in order of trust by `LayoutResolver`:
 
 1. **Symbol-driven** — computes offsets from type information (a `SymbolSource`). Exact,
-   and adapts across builds. Today types come from a JSON type-description file; a native
-   PDB/DIA backend is a drop-in that implements the same interface.
+   and adapts across builds. Types come either from a JSON type-description file or, via
+   the **native PDB backend** (`--pdb`), straight from a real Windows PDB — both implement
+   the same interface and feed the same layout engine. The PDB backend reads field *types*
+   and recomputes offsets; it never trusts the PDB's recorded offsets (a test cross-checks
+   that the recomputation matches them).
 2. **Hardcoded table** — the legacy baseline, kept as a fallback. Exact only for builds
    explicitly in the table.
 3. **Signature-based** — when no symbols exist, scans code for instruction patterns and
@@ -116,8 +122,11 @@ Supported today:
 
 ## Limitations & roadmap
 
-- Type information currently comes from a JSON file; a **native PDB/DIA symbol backend**
-  is the next increment (same `SymbolSource` interface).
+- Type information comes from either a JSON file or the native PDB backend (`--pdb`). The
+  PDB reader covers the common CodeView records (structs/classes, members, pointers,
+  arrays, modifiers, enums, base types); unions and bitfield members are reported as
+  unsupported rather than mis-laid-out. Symbol-server download of a PDB from a module's
+  debug directory is not yet implemented (point `--pdb` at a local file).
 - Hive reader does not yet handle big-data (`db`) values or transaction logs.
 - Signature scanning is a straightforward linear scan — fine for triage, not yet tuned
   for very large modules.

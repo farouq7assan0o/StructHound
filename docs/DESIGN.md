@@ -62,6 +62,35 @@ trustworthy.
 - **M5 — Polish. [done]** Packaging (`python -m structhound`, console script, project
   metadata, `setuptools` package discovery), MIT license, a CI workflow (lint + test on
   Python 3.10-3.12), a pinned ruff rule set, a CHANGELOG, and a portfolio-ready README.
+- **M6 — Native PDB symbol backend. [done]** A real `SymbolSource` that reads struct type
+  information straight out of a Windows PDB, closing the gap left by M2 (where symbol type
+  info came from a JSON stand-in). It parses the MSF container, locates the TPI stream, and
+  decodes the CodeView type records (`LF_STRUCTURE`/`LF_CLASS`, `LF_FIELDLIST`/`LF_MEMBER`,
+  `LF_POINTER`, `LF_ARRAY`, `LF_MODIFIER`, `LF_ENUM`, and built-in base/pointer types),
+  mapping them onto the existing `types.py` model. Crucially it does **not** read offsets
+  from the PDB — it hands the layout engine the field *types* and recomputes every offset,
+  then a test cross-checks the recomputation against the PDB's own recorded member offsets.
+  Slots in behind the unchanged `SymbolLayoutProvider`/`LayoutResolver`; the JSON loader
+  remains as a fallback. CLI: `structhound layout <struct> --pdb <file>`. See
+  `structhound/recover/pdb.py`, `tests/test_pdb.py`, and `tests/_pdbgen.py`.
+
+### Why a native PDB reader (M6 dependency evaluation)
+
+The obvious options were rejected for a cross-platform, pip-installable tool:
+
+- **`pdbparse`** — a Python-2-era, unmaintained package with old `construct`/`pefile`
+  pins; it does not install on modern CPython.
+- **Microsoft DIA** — Windows-only, requires `msdia*.dll` + COM, and is neither
+  pip-installable nor usable in cross-platform CI.
+
+So the backend parses the needed subset of the MSF/TPI format in pure standard library,
+in keeping with the rest of StructHound (no runtime dependency; an empty `pdb` optional
+group documents that). Unions and bitfield members are intentionally out of scope and
+reported as unsupported rather than silently mis-laid-out. Because real PDBs can't be
+committed and CI may lack a C compiler, the tests synthesize a valid MSF container holding
+genuine CodeView records (`tests/_pdbgen.py`); an optional test parses a real on-disk PDB
+when `STRUCTHOUND_TEST_PDB`/`STRUCTHOUND_TEST_STRUCT` point at one, and is skipped
+otherwise.
 
 ## Definition of done (for the portfolio claim)
 

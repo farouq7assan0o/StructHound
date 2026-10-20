@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- **M6 — Native PDB symbol backend.** A real `SymbolSource` (`structhound.recover.pdb`)
+  that reads struct type information directly from a Windows PDB: it parses the MSF
+  container and TPI stream, decodes the CodeView type records (structures/classes,
+  field lists/members, pointers, arrays, modifiers, enums, built-in base/pointer types),
+  and maps them onto the existing `types.py` model. Offsets are recomputed by the layout
+  engine, never read from the PDB — a test cross-checks the recomputation against the
+  PDB's own recorded member offsets. Exposed via `structhound layout <struct> --pdb
+  <file>`; the JSON type-description loader remains as a fallback. Pure standard library
+  (documented, empty `pdb` optional extra). Tests synthesize a valid MSF container so no
+  binary fixture or compiler is required in CI.
+
 ## 0.1.0
 
 First functional release. Five milestones:

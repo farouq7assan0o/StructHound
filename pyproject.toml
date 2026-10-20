@@ -22,8 +22,8 @@ classifiers = [
     "Topic :: System :: Forensics",
 ]
 dependencies = [
-    # Pure standard library today. A native PDB/DIA symbol backend (a later milestone)
-    # will add its own optional dependency here.
+    # Pure standard library, including the native PDB symbol backend. See the optional
+    # "pdb" extra below (intentionally empty — the native reader needs no third-party dep).
 ]
 
 [project.urls]
@@ -35,6 +35,11 @@ structhound = "structhound.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
+# The native PDB backend (structhound.recover.pdb) is pure standard library, so this
+# extra is intentionally empty. It exists as the documented, stable install target for
+# PDB support — `pip install structhound[pdb]` — so a future non-stdlib dependency
+# (e.g. a symbol-server downloader) can be added here without changing how users opt in.
+pdb = []
 
 [tool.setuptools.packages.find]
 include = ["structhound*"]

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from structhound import artifacts
@@ -48,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--symbols",
         metavar="PATH",
         help="type-description (symbol) file to compute the layout from",
+    )
+    p_layout.add_argument(
+        "--pdb",
+        metavar="PATH",
+        help="Windows PDB file to read struct type info from (native backend)",
     )
     p_layout.add_argument(
         "--signatures",
@@ -163,6 +169,34 @@ def _symbol_layout(args):
         return 4
 
 
+def _pdb_layout(args):
+    from structhound.recover import pdb as pdb_backend
+    from structhound.recover.types import arch_by_name
+
+    module = os.path.basename(args.pdb)
+    build = args.build or ""
+    try:
+        arch_obj = arch_by_name(args.arch)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        source = pdb_backend.PdbSymbolSource(
+            args.pdb, module=module, build=build, arch=arch_obj
+        )
+        # Fail fast with a clear message if the file can't be read/parsed.
+        source.struct_names()
+    except OSError as exc:
+        print(f"error: cannot read PDB: {exc}", file=sys.stderr)
+        return 2
+    except symbols.SymbolError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 4
+    return engine.SymbolLayoutProvider(source).layout(
+        module, build, args.struct, args.arch
+    )
+
+
 def _signature_layout(args):
     if not args.code:
         print("error: --signatures requires --code", file=sys.stderr)
@@ -191,12 +225,17 @@ def _signature_layout(args):
 
 
 def _run_layout(args) -> int:
-    if not args.symbols and not args.signatures:
-        print("error: provide --symbols, or --signatures with --code", file=sys.stderr)
+    if not args.symbols and not args.pdb and not args.signatures:
+        print(
+            "error: provide --symbols, --pdb, or --signatures with --code",
+            file=sys.stderr,
+        )
         return 2
 
     try:
-        if args.symbols:
+        if args.pdb:
+            resolved = _pdb_layout(args)
+        elif args.symbols:
             resolved = _symbol_layout(args)
         else:
             resolved = _signature_layout(args)
