@@ -27,8 +27,8 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/farouqhassan/structhound"
-Issues = "https://github.com/farouqhassan/structhound/issues"
+Homepage = "https://github.com/farouq7assan0o/StructHound"
+Issues = "https://github.com/farouq7assan0o/StructHound/issues"
 
 [project.scripts]
 structhound = "structhound.cli:main"

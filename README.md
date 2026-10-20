@@ -4,7 +4,7 @@
 layouts from the binaries themselves instead of trusting hand-maintained offset tables
 that go stale on every new Windows build.**
 
-[![CI](https://github.com/farouqhassan/structhound/actions/workflows/ci.yml/badge.svg)](https://github.com/farouqhassan/structhound/actions)
+[![CI](https://github.com/farouq7assan0o/StructHound/actions/workflows/ci.yml/badge.svg)](https://github.com/farouq7assan0o/StructHound/actions)
 
 ---
 

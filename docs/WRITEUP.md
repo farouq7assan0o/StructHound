@@ -39,7 +39,7 @@ Pure-Python PE + PDB (MSF/TPI/CodeView) parsing, no third-party deps. Built for 
 authorized engagements — it ships no acquisition component; you feed it artifacts you're
 allowed to analyze.
 
-Code + write-up: <YOUR REPO LINK>
+Code + write-up: https://github.com/farouq7assan0o/StructHound
 
 #DFIR #ReverseEngineering #WindowsInternals #IncidentResponse
 
@@ -128,4 +128,4 @@ a pre-existing file.
 Next: widening artifact coverage, and reading struct fields straight out of a dump using
 the recomputed layouts.
 
-Code: <YOUR REPO LINK>
+Code: https://github.com/farouq7assan0o/StructHound
