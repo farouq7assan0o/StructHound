@@ -83,6 +83,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", metavar="OUT", help="write JSON to OUT (use '-' for stdout)"
     )
 
+    p_diff = sub.add_parser(
+        "diff", help="diff struct layouts between two builds (PDB or symbol JSON)"
+    )
+    p_diff.add_argument("--a", metavar="PATH", required=True, help="old build's PDB or .json")
+    p_diff.add_argument("--b", metavar="PATH", required=True, help="new build's PDB or .json")
+    p_diff.add_argument("--struct", help="limit the diff to one struct")
+    p_diff.add_argument("--arch", default="x64", help="architecture (x64 or x86)")
+    p_diff.add_argument(
+        "--json", metavar="OUT", help="write JSON to OUT (use '-' for stdout)"
+    )
+
     return parser
 
 
@@ -300,6 +311,55 @@ def _run_layout(args) -> int:
     return 0
 
 
+def _load_structs(path: str, arch: str):
+    """Load a ``name -> Struct`` map from a PDB or a symbol-JSON file (by extension)."""
+    if path.lower().endswith(".json"):
+        doc = _load_json(path, "symbol file")
+        if isinstance(doc, int):
+            return doc
+        return symbols.structs_from_doc(doc)
+    from structhound.recover import pdb as pdb_backend
+    from structhound.recover.types import arch_by_name
+
+    return pdb_backend.parse_pdb(path, arch_by_name(arch)).structs
+
+
+def _run_diff(args) -> int:
+    from structhound import diff as diffmod
+    from structhound.recover.symbols import SymbolError
+
+    try:
+        old = _load_structs(args.a, args.arch)
+        if isinstance(old, int):
+            return old
+        new = _load_structs(args.b, args.arch)
+        if isinstance(new, int):
+            return new
+    except OSError as exc:
+        print(f"error: cannot read input: {exc}", file=sys.stderr)
+        return 2
+    except SymbolError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 4
+    except ValueError as exc:  # unknown arch
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    result = diffmod.diff_structs(old, new, args.arch, only=args.struct)
+
+    if args.json is not None:
+        payload = json.dumps(diffmod.to_dict(result), indent=2)
+        if args.json == "-":
+            print(payload)
+        else:
+            with open(args.json, "w", encoding="utf-8") as out:
+                out.write(payload)
+            print(f"wrote {args.json}", file=sys.stderr)
+    else:
+        print(diffmod.render(result))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
@@ -314,6 +374,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "layout":
         return _run_layout(args)
+
+    if args.command == "diff":
+        return _run_diff(args)
 
     build_parser().print_help()
     return 0

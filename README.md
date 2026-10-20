@@ -73,6 +73,24 @@ structhound layout _UNICODE_STRING --module C:\Windows\System32\ntdll.dll
 structhound layout EXAMPLE_STRUCT --signatures sigs.json --code module.bin
 ```
 
+### Diff a structure across builds
+
+```bash
+# What changed between two builds of a module? (PDBs or symbol-JSON on either side)
+structhound diff --a old/ntdll.pdb --b new/ntdll.pdb
+structhound diff --a examples/example_build_22621.json --b examples/example_build_26100.json
+```
+
+```
+EXAMPLE_STRUCT  (size 24 -> 32)
+  + Extra                    @8 (size 8) added
+  ~ Handle                   @8 -> @16 (+8)
+  ~ Count                    @16 -> @24 (+8)
+```
+
+That shift is precisely what silently breaks a hardcoded offset table — and what
+StructHound recomputes correctly. Try `python examples/demo_cross_build_diff.py`.
+
 ### Proof on real data
 
 `python examples/validate_real_pdb.py` runs the whole chain against a real Microsoft PDB:

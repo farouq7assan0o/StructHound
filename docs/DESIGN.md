@@ -86,6 +86,14 @@ trustworthy.
   adaptation is unaffected. See `examples/validate_real_pdb.py` and
   `tests/test_pe_symsrv.py`.
 
+- **M8 — Cross-build struct diff. [done]** `structhound/diff.py` diffs two `name ->
+  Struct` maps (from PDBs or symbol-JSON), reporting per-struct field additions, removals,
+  moves, resizes, and size changes. Offsets are recomputed from types on both sides, so
+  the diff is exactly the set of layout changes that silently break an offset table — it
+  turns the project's thesis into a feature that answers "what moved in this build?".
+  CLI: `structhound diff --a <old> --b <new> [--struct NAME]`. See
+  `examples/demo_cross_build_diff.py` and `tests/test_diff.py`.
+
 ### Why a native PDB reader (M6 dependency evaluation)
 
 The obvious options were rejected for a cross-platform, pip-installable tool:

@@ -121,3 +121,8 @@ def source_from_doc(doc: dict) -> DictSymbolSource:
     for struct in structs.values():
         src.register(module, build, struct)
     return src
+
+
+def structs_from_doc(doc: dict) -> dict[str, Struct]:
+    """Build the ``name -> Struct`` map from a type-description document."""
+    return _build_structs(doc.get("structs", {}))

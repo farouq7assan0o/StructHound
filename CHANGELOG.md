@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **M8 — Cross-build struct diff.** `structhound diff --a <old> --b <new>` reports, per
+  structure, exactly what changed between two builds: fields added/removed, fields that
+  moved to a new offset, fields that resized, and overall size — with offsets recomputed
+  from types on both sides, so it reflects real layout changes (the same ones that break
+  a hardcoded offset table). Inputs can be PDBs or symbol-JSON files; `--struct` scopes
+  it to one structure. See `structhound/diff.py` and `examples/demo_cross_build_diff.py`.
 - **M7 — Symbol-server fetch + real-data validation.** A minimal PE reader
   (`structhound.pe`) extracts a module's CodeView PDB id (GUID + age), a symbol-server
   client (`structhound.symsrv`) downloads the matching PDB from Microsoft's public store,
