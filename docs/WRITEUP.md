@@ -25,9 +25,15 @@ offset, compare to the PDB's own records.
 
 → 190 structures, **897 of 897 field offsets correct.**
 
-That run also caught two things worth fixing: a packed struct (`_KTSS64`) the engine now
-infers packing for, and unions, which it now detects and refuses rather than reporting
-wrong offsets.
+Then I diffed two real builds — Windows 10 (19041) vs Windows 11 (26100) ntdll — and it
+reported exactly what Microsoft moved: **15 structures with changed field layouts, 42
+added, 10 removed.** For example `_HEAP_COUNTERS` grew by 8 bytes — two fields inserted at
+offset 24, shifting every field after them. A hardcoded offset table built for 19041
+reads all of those from the wrong place on 26100. StructHound recomputed them.
+
+That validation also caught two things worth fixing: a packed struct (`_KTSS64`) the
+engine now infers packing for, and unions, which it now detects and refuses rather than
+reporting wrong offsets.
 
 Pure-Python PE + PDB (MSF/TPI/CodeView) parsing, no third-party deps. Built for IR and
 authorized engagements — it ships no acquisition component; you feed it artifacts you're
@@ -89,6 +95,15 @@ PDB itself recorded.
 
 **Result: 190 structures modeled, 897 of 897 field offsets correct.**
 
+Then the real cross-build test. I fetched `ntdll.pdb` for two genuinely different builds —
+Windows 10 (19041) and Windows 11 (26100) — and diffed them. StructHound reported exactly
+what Microsoft changed: **15 structures with moved/resized fields, 42 added, 10 removed.**
+`_HEAP_COUNTERS`, for instance, grew from 120 to 128 bytes because two counters were
+inserted at offset 24 — which shifted every field after them (`TotalSegments` 32→40,
+`TotalUCRs` 36→44, and so on). That shift is the exact thing that silently breaks a
+hardcoded offset table. StructHound recomputed every offset on both sides and told me
+what moved.
+
 Getting to 897/897 took two honest fixes that only a real PDB would surface:
 
 - **Packing.** `_KTSS64` is `#pragma pack(4)`; natural alignment put a `uint64` at offset
@@ -110,7 +125,7 @@ It's defensive/forensic tooling: you point it at artifacts you own or are author
 analyze. It ships no acquisition, injection, or process-access component — input is always
 a pre-existing file.
 
-Next: a second real-build before/after to show the across-builds story on production
-symbols end to end, and widening artifact coverage.
+Next: widening artifact coverage, and reading struct fields straight out of a dump using
+the recomputed layouts.
 
 Code: <YOUR REPO LINK>
