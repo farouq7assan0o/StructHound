@@ -56,6 +56,10 @@ input artifact ──▶ structure recovery ──▶ typed view ──▶ decry
   resolver chain symbol -> hardcoded -> signature;
   `structhound layout <struct> --signatures <sigs.json> --code <blob>`. Try
   `python examples/demo_signature.py`.
+- **M4 (done):** a second artifact source — a Windows registry hive (regf) reader that
+  enumerates the key tree and values (`structhound parse SOFTWARE`) — and a second,
+  more complex struct proving the layout engine generalizes across structures and
+  architectures.
 
 Type information currently comes from a JSON type-description file — the format a native
 PDB/DIA extraction step would emit. A PDB backend is the next increment and only has to

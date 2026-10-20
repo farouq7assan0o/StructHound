@@ -62,3 +62,96 @@ def build_minidump(
 
     assert len(buf) == name_rva + 4 + len(name_bytes)
     return bytes(buf)
+
+
+# --- registry hive -------------------------------------------------------------
+
+def _round8(n: int) -> int:
+    return (n + 7) & ~7
+
+
+def build_hive() -> bytes:
+    """Return a minimal valid regf hive:
+
+        [ROOT]  Val (REG_DWORD) = 0x12345678
+          [SUB]  Str (REG_SZ) = "hello"
+    """
+    HBIN = 0x1000
+    buf = bytearray(0x2000)
+
+    # --- base block ---
+    struct.pack_into("<4s", buf, 0x00, b"regf")
+    struct.pack_into("<II", buf, 0x04, 1, 1)  # sequence numbers
+    struct.pack_into("<II", buf, 0x14, 1, 3)  # major, minor
+    struct.pack_into("<II", buf, 0x1C, 0, 1)  # file type, format
+    struct.pack_into("<I", buf, 0x28, 0x1000)  # hive bins data size
+    struct.pack_into("<I", buf, 0x2C, 1)  # clustering factor
+    hive_name = "TESTHIVE".encode("utf-16-le")
+    buf[0x30 : 0x30 + len(hive_name)] = hive_name
+
+    # --- hbin header ---
+    struct.pack_into("<4sII", buf, HBIN, b"hbin", 0, 0x1000)
+
+    cursor = 0x20  # first cell, right after the 32-byte hbin header
+
+    def put(payload: bytes) -> int:
+        nonlocal cursor
+        rel = cursor
+        clen = _round8(4 + len(payload))
+        struct.pack_into("<i", buf, HBIN + rel, -clen)  # negative = allocated
+        buf[HBIN + rel + 4 : HBIN + rel + 4 + len(payload)] = payload
+        cursor += clen
+        return rel
+
+    def nk(name, *, subkey_count, subkeys_list, value_count, values_list) -> bytes:
+        rec = bytearray(0x4C + len(name))
+        struct.pack_into("<2sH", rec, 0x00, b"nk", 0x0020)  # 0x20 = comp (ascii) name
+        struct.pack_into("<I", rec, 0x10, 0xFFFFFFFF)  # parent (unused by parser)
+        struct.pack_into("<I", rec, 0x14, subkey_count)
+        struct.pack_into("<I", rec, 0x1C, subkeys_list)
+        struct.pack_into("<I", rec, 0x20, 0xFFFFFFFF)
+        struct.pack_into("<I", rec, 0x24, value_count)
+        struct.pack_into("<I", rec, 0x28, values_list)
+        struct.pack_into("<I", rec, 0x2C, 0xFFFFFFFF)
+        struct.pack_into("<I", rec, 0x30, 0xFFFFFFFF)
+        struct.pack_into("<H", rec, 0x48, len(name))
+        rec[0x4C : 0x4C + len(name)] = name
+        return bytes(rec)
+
+    def vk(name, *, data_size, data_offset, dtype) -> bytes:
+        rec = bytearray(0x14 + len(name))
+        struct.pack_into("<2sH", rec, 0x00, b"vk", len(name))
+        struct.pack_into("<I", rec, 0x04, data_size)
+        struct.pack_into("<I", rec, 0x08, data_offset)
+        struct.pack_into("<I", rec, 0x0C, dtype)
+        struct.pack_into("<H", rec, 0x10, 0x0001)  # ascii name
+        rec[0x14 : 0x14 + len(name)] = name
+        return bytes(rec)
+
+    # root value: REG_DWORD stored inline (high bit set), value = 0x12345678
+    root_val_off = put(vk(b"Val", data_size=0x80000004, data_offset=0x12345678, dtype=4))
+    root_vallist_off = put(struct.pack("<I", root_val_off))
+
+    # SUB value: REG_SZ "hello" in a separate data cell
+    sz_data = "hello\x00".encode("utf-16-le")
+    sub_data_off = put(sz_data)
+    sub_val_off = put(vk(b"Str", data_size=len(sz_data), data_offset=sub_data_off, dtype=1))
+    sub_vallist_off = put(struct.pack("<I", sub_val_off))
+    sub_nk_off = put(
+        nk(b"SUB", subkey_count=0, subkeys_list=0xFFFFFFFF,
+           value_count=1, values_list=sub_vallist_off)
+    )
+
+    # root subkey list (lf) -> SUB
+    lf = bytearray(4 + 8)
+    struct.pack_into("<2sH", lf, 0x00, b"lf", 1)
+    struct.pack_into("<II", lf, 0x04, sub_nk_off, 0)
+    root_subkeys_off = put(bytes(lf))
+
+    root_nk_off = put(
+        nk(b"ROOT", subkey_count=1, subkeys_list=root_subkeys_off,
+           value_count=1, values_list=root_vallist_off)
+    )
+
+    struct.pack_into("<I", buf, 0x24, root_nk_off)  # base block root cell offset
+    return bytes(buf)

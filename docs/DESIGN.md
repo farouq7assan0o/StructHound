@@ -53,8 +53,12 @@ trustworthy.
   `LayoutResolver` (symbol -> hardcoded -> signature). CLI:
   `structhound layout <struct> --signatures <sigs.json> --code <blob>`. See
   `examples/demo_signature.py`.
-- **M4 — Second artifact source + second structure.** Show the recovery engine
-  generalizes beyond one case.
+- **M4 — Second artifact source + second structure. [done]** A registry hive (regf)
+  reader — base block, hbin cells, nk/vk and lf/lh/li/ri subkey lists — that enumerates
+  the key tree and decodes common value types, wired into `parse` and the report
+  (`details.registry`). Plus a second, more complex struct (`COMPLEX_NODE`: nested
+  struct + array, arch-dependent) proving the layout engine is not special-cased — see
+  `examples/example2_struct.json` and `tests/test_generalization.py`.
 - **M5 — Polish.** Docs, test fixtures (synthetic/lab-generated), demo writeup.
 
 ## Definition of done (for the portfolio claim)

@@ -1,0 +1,24 @@
+{
+  "module": "example2.dll",
+  "build": "26100",
+  "arch": "x64",
+  "structs": {
+    "COMPLEX_NODE": {
+      "pack": null,
+      "fields": [
+        {"name": "Tag",    "type": "u16"},
+        {"name": "Count",  "type": "u32"},
+        {"name": "Link",   "type": "ptr"},
+        {"name": "Header", "type": {"struct": "SUBHDR"}},
+        {"name": "Data",   "type": {"array": "u8", "count": 8}}
+      ]
+    },
+    "SUBHDR": {
+      "fields": [
+        {"name": "Version", "type": "u16"},
+        {"name": "Flags",   "type": "u16"},
+        {"name": "Size",    "type": "u32"}
+      ]
+    }
+  }
+}

@@ -4,7 +4,7 @@ import json
 
 from structhound.cli import build_parser, main
 
-from tests._fixtures import build_minidump
+from tests._fixtures import build_hive, build_minidump
 
 
 def test_version_flag(capsys):
@@ -49,6 +49,27 @@ def test_parse_minidump_json_stdout(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["modules"][0]["name"] == "ntdll.dll"
     assert payload["summary"]["module_count"] == 1
+
+
+def test_parse_hive_console(tmp_path, capsys):
+    p = tmp_path / "SOFTWARE"
+    p.write_bytes(build_hive())
+    assert main(["parse", str(p)]) == 0
+    out = capsys.readouterr().out
+    assert "[ROOT]" in out
+    assert "Val (REG_DWORD)" in out
+    assert "[SUB]" in out
+
+
+def test_parse_hive_json(tmp_path, capsys):
+    p = tmp_path / "SOFTWARE"
+    p.write_bytes(build_hive())
+    assert main(["parse", str(p), "--json", "-"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["artifact"]["format"] == "hive"
+    reg = payload["details"]["registry"]
+    assert reg["name"] == "ROOT"
+    assert reg["subkeys"][0]["name"] == "SUB"
 
 
 _SYMBOL_DOC = """

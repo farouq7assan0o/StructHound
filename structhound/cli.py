@@ -14,7 +14,7 @@ import sys
 import json
 
 from structhound import artifacts
-from structhound.artifacts import minidump
+from structhound.artifacts import hive, minidump
 from structhound.recover import engine, signatures, symbols
 from structhound.report import console, schema
 
@@ -92,6 +92,13 @@ def _run_parse(args: argparse.Namespace) -> int:
             print(f"error: malformed minidump: {exc}", file=sys.stderr)
             return 4
         report = schema.from_minidump(args.artifact, len(data), dump)
+    elif fmt == "hive":
+        try:
+            parsed = hive.parse(data)
+        except hive.HiveError as exc:
+            print(f"error: malformed hive: {exc}", file=sys.stderr)
+            return 4
+        report = schema.from_hive(args.artifact, len(data), parsed)
     else:  # pragma: no cover - guarded by detect()
         print(f"error: no reader for format '{fmt}'", file=sys.stderr)
         return 3

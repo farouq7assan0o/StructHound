@@ -26,6 +26,12 @@ def render(report: Report) -> str:
                 f"  {m['base']:#018x} {m['size']:>10}  {m['file_version']:<18} {m['name']}"
             )
 
+    registry = report.details.get("registry")
+    if registry:
+        lines.append("")
+        lines.append("Registry tree:")
+        _render_key(registry, lines, indent=1)
+
     if report.notes:
         lines.append("")
         lines.append("Notes:")
@@ -33,6 +39,17 @@ def render(report: Report) -> str:
             lines.append(f"  - {note}")
 
     return "\n".join(lines)
+
+
+def _render_key(node: dict, lines: list[str], indent: int) -> None:
+    pad = "  " * indent
+    lines.append(f"{pad}[{node['name']}]")
+    for v in node["values"]:
+        lines.append(f"{pad}  {v['name']} ({v['type']}) = {v['value']}")
+    for sk in node["subkeys"]:
+        _render_key(sk, lines, indent + 1)
+    if node.get("truncated"):
+        lines.append(f"{pad}  ... (truncated)")
 
 
 def render_layout(resolved: ResolvedLayout) -> str:
