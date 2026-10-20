@@ -36,13 +36,19 @@ trustworthy.
 
 ## Roadmap (rough, ~several weeks of real work)
 
-- **M1 — Skeleton + artifact reader.** Parse one offline artifact format end-to-end;
-  stable CLI; JSON output schema fixed.
-- **M2 — Symbol-driven recovery.** Resolve structure offsets from symbols for a single
-  target structure on 2–3 Windows builds. Prove the "works across builds" claim with a
-  before/after against a hardcoded table.
+- **M1 — Skeleton + artifact reader. [done]** Minidump container reader (header, stream
+  directory, module list), format detection by magic bytes, versioned JSON schema +
+  console renderer, `structhound parse`.
+- **M2 — Symbol-driven recovery. [done]** C/MSVC struct-layout engine (alignment,
+  padding, nested structs, arrays, packing), a `SymbolSource` abstraction with a JSON
+  type-description loader (the format a PDB/DIA backend would emit), layout providers
+  with provenance + confidence, a `LayoutResolver` that prefers symbols then falls back,
+  and `structhound layout`. The across-builds claim is proven by
+  `examples/demo_across_builds.py` and `tests/test_recover.py`: a field inserted between
+  builds 22621 and 26100 breaks the hardcoded table while the symbol path stays correct.
 - **M3 — Signature fallback + confidence.** Recover the same structure with symbols
-  disabled; report confidence.
+  disabled; report confidence < 1.0. Slots in as a third provider after the hardcoded
+  fallback in `LayoutResolver`.
 - **M4 — Second artifact source + second structure.** Show the recovery engine
   generalizes beyond one case.
 - **M5 — Polish.** Docs, test fixtures (synthetic/lab-generated), demo writeup.

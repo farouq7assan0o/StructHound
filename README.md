@@ -45,7 +45,18 @@ input artifact ──▶ structure recovery ──▶ typed view ──▶ decry
 
 ## Status
 
-Early scaffold. See `docs/DESIGN.md` for the architecture writeup and roadmap.
+- **M1 (done):** minidump container reader, format detection, JSON/console reports —
+  `structhound parse <artifact>`.
+- **M2 (done):** the layout-recovery engine — computes struct field offsets from type
+  information (so it adapts across Windows builds) instead of trusting a static offset
+  table; `structhound layout <struct> --symbols <types.json>`. Try
+  `python examples/demo_across_builds.py` for the before/after.
+
+Type information currently comes from a JSON type-description file — the format a native
+PDB/DIA extraction step would emit. A PDB backend is the next increment and only has to
+implement the `SymbolSource` interface, so nothing downstream changes.
+
+See `docs/DESIGN.md` for the architecture writeup and roadmap.
 
 ## License
 

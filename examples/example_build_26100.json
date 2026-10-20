@@ -1,0 +1,16 @@
+{
+  "module": "example.dll",
+  "build": "26100",
+  "arch": "x64",
+  "structs": {
+    "EXAMPLE_STRUCT": {
+      "pack": null,
+      "fields": [
+        {"name": "Flags",  "type": "u32"},
+        {"name": "Extra",  "type": "u64"},
+        {"name": "Handle", "type": "ptr"},
+        {"name": "Count",  "type": "u32"}
+      ]
+    }
+  }
+}

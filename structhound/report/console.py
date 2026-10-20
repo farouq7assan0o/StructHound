@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from structhound.recover.engine import ResolvedLayout
 from structhound.report.schema import Report
 
 
@@ -31,4 +32,21 @@ def render(report: Report) -> str:
         for note in report.notes:
             lines.append(f"  - {note}")
 
+    return "\n".join(lines)
+
+
+def render_layout(resolved: ResolvedLayout) -> str:
+    layout = resolved.layout
+    prov = resolved.provenance
+    lines: list[str] = []
+    lines.append(f"Struct   : {layout.name}  [{layout.arch}]")
+    lines.append(f"Size     : {layout.total_size} bytes (align {layout.align})")
+    lines.append(
+        f"Source   : {prov.method.value} "
+        f"(confidence {prov.confidence:.2f}) - {prov.detail}"
+    )
+    lines.append("")
+    lines.append(f"  {'offset':>8}  {'size':>6}  field")
+    for info in layout.fields.values():
+        lines.append(f"  {info.offset:>8}  {info.size:>6}  {info.name}")
     return "\n".join(lines)

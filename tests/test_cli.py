@@ -49,3 +49,47 @@ def test_parse_minidump_json_stdout(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["modules"][0]["name"] == "ntdll.dll"
     assert payload["summary"]["module_count"] == 1
+
+
+_SYMBOL_DOC = """
+{
+  "module": "example.dll",
+  "build": "26100",
+  "structs": {
+    "EXAMPLE_STRUCT": {
+      "fields": [
+        {"name": "Flags",  "type": "u32"},
+        {"name": "Extra",  "type": "u64"},
+        {"name": "Handle", "type": "ptr"},
+        {"name": "Count",  "type": "u32"}
+      ]
+    }
+  }
+}
+"""
+
+
+def test_layout_console(tmp_path, capsys):
+    f = tmp_path / "syms.json"
+    f.write_text(_SYMBOL_DOC)
+    assert main(["layout", "EXAMPLE_STRUCT", "--symbols", str(f)]) == 0
+    out = capsys.readouterr().out
+    assert "EXAMPLE_STRUCT" in out
+    assert "symbol" in out
+
+
+def test_layout_json(tmp_path, capsys):
+    f = tmp_path / "syms.json"
+    f.write_text(_SYMBOL_DOC)
+    assert main(["layout", "EXAMPLE_STRUCT", "--symbols", str(f), "--json", "-"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    offsets = {fld["name"]: fld["offset"] for fld in payload["fields"]}
+    assert offsets == {"Flags": 0, "Extra": 8, "Handle": 16, "Count": 24}
+    assert payload["provenance"]["method"] == "symbol"
+
+
+def test_layout_unknown_struct(tmp_path, capsys):
+    f = tmp_path / "syms.json"
+    f.write_text(_SYMBOL_DOC)
+    assert main(["layout", "NOPE", "--symbols", str(f)]) == 4
+    assert "no type info" in capsys.readouterr().err
