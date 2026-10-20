@@ -48,6 +48,44 @@ class MemoryReader:
                 return chunk
         raise MemoryError_(f"address {va:#x} (+{n}) is not captured in this dump")
 
+    def walk(
+        self,
+        layout: StructLayout,
+        va: int,
+        link_field: str,
+        max_nodes: int = 16,
+        link_offset: int = 0,
+    ) -> list[tuple[int, list[FieldValue]]]:
+        """Follow ``link_field`` from node to node, reading ``layout`` at each.
+
+        The next node's base address is ``<pointer value> - link_offset``; use a non-zero
+        ``link_offset`` for embedded ``_LIST_ENTRY``-style links, where the pointer targets
+        the link field inside the next node rather than the node's base (CONTAINING_RECORD).
+
+        Stops on: a null pointer, an address already visited (cycle / circular list back to
+        the head), an address not captured in the dump, or ``max_nodes``.
+        """
+        if link_field not in layout.fields:
+            raise MemoryError_(f"no field {link_field!r} in {layout.name}")
+
+        nodes: list[tuple[int, list[FieldValue]]] = []
+        seen: set[int] = set()
+        cur = va
+        for _ in range(max_nodes):
+            if cur == 0 or cur in seen:
+                break
+            try:
+                fields = self.read_struct(layout, cur)
+            except MemoryError_:
+                break
+            nodes.append((cur, fields))
+            seen.add(cur)
+            ptr = next((f.value for f in fields if f.name == link_field), None)
+            if ptr is None:
+                raise MemoryError_(f"link field {link_field!r} is not a readable pointer")
+            cur = ptr - link_offset
+        return nodes
+
     def read_struct(self, layout: StructLayout, va: int) -> list[FieldValue]:
         """Read every field of ``layout`` at ``va`` and return typed values."""
         span = layout.total_size or max(

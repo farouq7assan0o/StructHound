@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **M10 — Pointer-following / linked-list walk.** `structhound read ... --walk <FIELD>`
+  treats a pointer field as a next-pointer and walks the chain of instances, reading each
+  with the computed layout. Stops safely on null, a cycle (circular list back to the
+  head), an uncaptured address, or `--max`. `--link-offset` backs a pointer out to the
+  node base for embedded `_LIST_ENTRY`-style links (CONTAINING_RECORD). See
+  `examples/demo_walk_list.py`.
 - **M9 — Read struct instances from a dump.** The minidump reader now parses memory
   streams (`MemoryListStream`/`Memory64ListStream`) into virtual-address ranges, and a
   memory reader (`structhound.memory`) applies a computed layout to read a struct instance

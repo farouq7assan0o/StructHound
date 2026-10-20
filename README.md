@@ -82,6 +82,15 @@ structhound read crash.dmp _SOME_STRUCT --at 0x7ff8004200a0 --module C:\path\to\
 
 Try `python examples/demo_read_from_dump.py` for a self-contained run.
 
+Follow a pointer field to walk a linked list of structs:
+
+```bash
+structhound read crash.dmp _SOME_NODE --at 0x... --walk Next --module mod.dll
+# embedded _LIST_ENTRY lists: add --link-offset <offset of the link field in the node>
+```
+
+See `python examples/demo_walk_list.py`.
+
 ### Diff a structure across builds
 
 ```bash

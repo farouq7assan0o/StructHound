@@ -100,6 +100,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_read.add_argument("--code", metavar="PATH", help="code blob for --signatures")
     p_read.add_argument("--arch", default="x64", help="architecture (x64 or x86)")
     p_read.add_argument("--build", help="override the build id")
+    p_read.add_argument(
+        "--walk",
+        metavar="FIELD",
+        help="treat FIELD as a next-pointer and walk the linked list of instances",
+    )
+    p_read.add_argument(
+        "--max", type=int, default=16, help="max nodes to walk (default 16)"
+    )
+    p_read.add_argument(
+        "--link-offset",
+        type=lambda s: int(s, 0),
+        default=0,
+        help="subtract from each pointer to get the next node base (embedded _LIST_ENTRY)",
+    )
     p_read.add_argument("--json", metavar="OUT", help="write JSON to OUT (use '-' for stdout)")
 
     p_diff = sub.add_parser(
@@ -366,20 +380,29 @@ def _run_read(args) -> int:
 
     reader = memory.MemoryReader(data, dump.memory_ranges)
     try:
-        values = reader.read_struct(resolved.layout, va)
+        if args.walk:
+            nodes = reader.walk(
+                resolved.layout, va, args.walk, max_nodes=args.max, link_offset=args.link_offset
+            )
+        else:
+            nodes = [(va, reader.read_struct(resolved.layout, va))]
     except memory.MemoryError_ as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 4
+
+    def _fields_json(values):
+        return [
+            {"name": v.name, "offset": v.offset, "size": v.size, "value": v.value, "hex": v.hex}
+            for v in values
+        ]
 
     if args.json is not None:
         payload = json.dumps(
             {
                 "struct": resolved.layout.name,
-                "address": va,
-                "fields": [
-                    {"name": v.name, "offset": v.offset, "size": v.size,
-                     "value": v.value, "hex": v.hex}
-                    for v in values
+                "walk": args.walk,
+                "nodes": [
+                    {"address": addr, "fields": _fields_json(vals)} for addr, vals in nodes
                 ],
             },
             indent=2,
@@ -391,11 +414,17 @@ def _run_read(args) -> int:
                 out.write(payload)
             print(f"wrote {args.json}", file=sys.stderr)
     else:
-        print(f"{resolved.layout.name} @ {va:#x}  (source: {resolved.provenance.method.value})")
-        print(f"  {'offset':>6}  {'size':>4}  {'value':>20}  field")
-        for v in values:
-            shown = f"{v.value:#x}" if v.value is not None else v.hex
-            print(f"  {v.offset:>6}  {v.size:>4}  {shown:>20}  {v.name}")
+        name = resolved.layout.name
+        source = resolved.provenance.method.value
+        if args.walk:
+            print(f"{name} list via '{args.walk}'  ({len(nodes)} node(s), source: {source})")
+        for i, (addr, values) in enumerate(nodes):
+            prefix = f"[{i}] " if args.walk else ""
+            print(f"\n{prefix}{name} @ {addr:#x}")
+            print(f"  {'offset':>6}  {'size':>4}  {'value':>20}  field")
+            for v in values:
+                shown = f"{v.value:#x}" if v.value is not None else v.hex
+                print(f"  {v.offset:>6}  {v.size:>4}  {shown:>20}  {v.name}")
     return 0
 
 

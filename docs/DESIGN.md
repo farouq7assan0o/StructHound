@@ -103,6 +103,13 @@ trustworthy.
   give, from an authorized dump — a structural `dt`, not a credential extractor. See
   `structhound/memory.py`, `examples/demo_read_from_dump.py`, `tests/test_memory.py`.
 
+- **M10 — Pointer-following / linked-list walk. [done]** `MemoryReader.walk` follows a
+  pointer field from node to node, reading each with the computed layout, and terminates
+  on null, a repeated address (cycle / circular list), an uncaptured address, or a max
+  count. A `link_offset` handles embedded `_LIST_ENTRY` links where the pointer targets
+  the link field rather than the node base. CLI: `read ... --walk FIELD [--max N]
+  [--link-offset N]`. See `structhound/memory.py` and `examples/demo_walk_list.py`.
+
 ### Why a native PDB reader (M6 dependency evaluation)
 
 The obvious options were rejected for a cross-platform, pip-installable tool:
