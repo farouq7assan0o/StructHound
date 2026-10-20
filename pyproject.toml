@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "structhound"
+version = "0.0.1"
+description = "Build-resilient parser for Windows forensic artifacts (memory, DPAPI, hives)."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Farouq" }]
+keywords = ["dfir", "forensics", "windows", "incident-response", "reverse-engineering"]
+dependencies = [
+    # Binary/structure parsing and PE/symbol handling get added as milestones land.
+    # e.g. "construct", "pefile"
+]
+
+[project.scripts]
+structhound = "structhound.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
