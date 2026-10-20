@@ -15,10 +15,9 @@ always see whether output is trustworthy.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-
-from abc import ABC, abstractmethod
 
 from structhound.recover.signatures import SignatureError, StructSignatureSet, recover_struct
 from structhound.recover.symbols import SymbolError, SymbolSource

@@ -5,7 +5,6 @@ import pytest
 from structhound import artifacts
 from structhound.artifacts import minidump
 from structhound.report import schema
-
 from tests._fixtures import build_minidump
 
 

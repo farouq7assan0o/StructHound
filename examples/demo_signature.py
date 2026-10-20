@@ -15,7 +15,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from structhound.recover import engine, signatures, symbols  # noqa: E402
+from structhound.recover import engine, signatures, symbols
 
 MODULE = "example.dll"
 BUILD = "99999"  # a build we have no symbols or table for

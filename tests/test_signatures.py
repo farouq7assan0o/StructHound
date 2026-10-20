@@ -62,7 +62,8 @@ def test_recover_single_signature():
 
 def test_recover_corroborated_higher_confidence():
     # Two different instruction encodings that both reference offset 0x10.
-    blob = FILLER + _mov(0x81, 0x10) + FILLER + bytes([0x4C, 0x8B, 0x81]) + (0x10).to_bytes(4, "little")
+    alt = bytes([0x4C, 0x8B, 0x81]) + (0x10).to_bytes(4, "little")
+    blob = FILLER + _mov(0x81, 0x10) + FILLER + alt
     sigs = [
         FieldSignature(BytePattern.parse("48 8B 81 ?? ?? ?? ??"), 3, 4),
         FieldSignature(BytePattern.parse("4C 8B 81 ?? ?? ?? ??"), 3, 4),

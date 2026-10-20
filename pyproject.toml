@@ -4,16 +4,31 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "structhound"
-version = "0.0.1"
-description = "Build-resilient parser for Windows forensic artifacts (memory, DPAPI, hives)."
+version = "0.1.0"
+description = "Build-resilient parser for Windows forensic artifacts (memory dumps and registry hives)."
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [{ name = "Farouq" }]
+license = { text = "MIT" }
+authors = [{ name = "Farouq Hassan" }]
 keywords = ["dfir", "forensics", "windows", "incident-response", "reverse-engineering"]
-dependencies = [
-    # Binary/structure parsing and PE/symbol handling get added as milestones land.
-    # e.g. "construct", "pefile"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: System :: Forensics",
 ]
+dependencies = [
+    # Pure standard library today. A native PDB/DIA symbol backend (a later milestone)
+    # will add its own optional dependency here.
+]
+
+[project.urls]
+Homepage = "https://github.com/farouqhassan/structhound"
+Issues = "https://github.com/farouqhassan/structhound/issues"
 
 [project.scripts]
 structhound = "structhound.cli:main"
@@ -21,8 +36,14 @@ structhound = "structhound.cli:main"
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 
+[tool.setuptools.packages.find]
+include = ["structhound*"]
+
 [tool.ruff]
 line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

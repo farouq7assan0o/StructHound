@@ -125,7 +125,7 @@ def parse(data: bytes) -> Minidump:
         entry_off = dir_rva + i * _DIRECTORY.size
         if entry_off + _DIRECTORY.size > len(data):
             raise MinidumpError("stream directory runs past end of dump")
-        stream_type, data_size, rva = _DIRECTORY.unpack_from(data, entry_off)
+        stream_type, _data_size, rva = _DIRECTORY.unpack_from(data, entry_off)
         if stream_type == STREAM_MODULE_LIST:
             dump.modules = _parse_module_list(data, rva)
 

@@ -59,7 +59,9 @@ trustworthy.
   (`details.registry`). Plus a second, more complex struct (`COMPLEX_NODE`: nested
   struct + array, arch-dependent) proving the layout engine is not special-cased — see
   `examples/example2_struct.json` and `tests/test_generalization.py`.
-- **M5 — Polish.** Docs, test fixtures (synthetic/lab-generated), demo writeup.
+- **M5 — Polish. [done]** Packaging (`python -m structhound`, console script, project
+  metadata, `setuptools` package discovery), MIT license, a CI workflow (lint + test on
+  Python 3.10-3.12), a pinned ruff rule set, a CHANGELOG, and a portfolio-ready README.
 
 ## Definition of done (for the portfolio claim)
 

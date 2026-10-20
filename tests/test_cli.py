@@ -3,7 +3,6 @@
 import json
 
 from structhound.cli import build_parser, main
-
 from tests._fixtures import build_hive, build_minidump
 
 
@@ -142,7 +141,9 @@ def test_layout_signature_mode(tmp_path, capsys):
     code = tmp_path / "code.bin"
     # nops + mov rax,[rcx+0x10]
     code.write_bytes(b"\x90\x90\x90\x90" + bytes([0x48, 0x8B, 0x81]) + (0x10).to_bytes(4, "little"))
-    assert main(["layout", "EXAMPLE_STRUCT", "--signatures", str(sig), "--code", str(code), "--json", "-"]) == 0
+    argv = ["layout", "EXAMPLE_STRUCT", "--signatures", str(sig),
+            "--code", str(code), "--json", "-"]
+    assert main(argv) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["provenance"]["method"] == "signature"
     assert payload["provenance"]["confidence"] < 1.0

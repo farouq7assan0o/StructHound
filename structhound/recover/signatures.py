@@ -36,7 +36,7 @@ class BytePattern:
     value: bytes
 
     @classmethod
-    def parse(cls, text: str) -> "BytePattern":
+    def parse(cls, text: str) -> BytePattern:
         mask = bytearray()
         value = bytearray()
         for tok in text.split():
@@ -63,7 +63,7 @@ class BytePattern:
         """Return every start index in ``blob`` where the pattern matches."""
         plen = len(self.mask)
         hits: list[int] = []
-        for i in range(0, len(blob) - plen + 1):
+        for i in range(len(blob) - plen + 1):
             if all((blob[i + j] & self.mask[j]) == self.value[j] for j in range(plen)):
                 hits.append(i)
         return hits

@@ -9,9 +9,8 @@ Only pre-existing, authorized artifact files are read.
 from __future__ import annotations
 
 import argparse
-import sys
-
 import json
+import sys
 
 from structhound import artifacts
 from structhound.artifacts import hive, minidump
@@ -172,7 +171,8 @@ def _signature_layout(args):
     if isinstance(doc, int):
         return doc
     try:
-        code = open(args.code, "rb").read()
+        with open(args.code, "rb") as fh:
+            code = fh.read()
     except OSError as exc:
         print(f"error: cannot read code blob: {exc}", file=sys.stderr)
         return 2

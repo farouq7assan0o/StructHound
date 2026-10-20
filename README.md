@@ -1,72 +1,137 @@
 # StructHound
 
-**A build-resilient parser for Windows in-memory, DPAPI, and registry-hive data structures — for digital forensics and incident response.**
+**A build-resilient parser for Windows forensic artifacts — it recovers structure
+layouts from the binaries themselves instead of trusting hand-maintained offset tables
+that go stale on every new Windows build.**
 
-## The problem it solves
+[![CI](https://github.com/farouqhassan/structhound/actions/workflows/ci.yml/badge.svg)](https://github.com/farouqhassan/structhound/actions)
 
-Forensic and IR tooling that interprets Windows memory and offline artifacts relies on
-*undocumented* internal structures. Microsoft changes the layout of these structures
-between Windows builds, so existing open-source parsers depend on hand-maintained
-offset tables that go stale the moment a new build ships. When that happens, an analyst
-working an incident gets empty or wrong output and has to wait for someone to manually
-determine the new layout and patch a table.
+---
 
-StructHound's goal is to remove that fragility: instead of trusting a static offset
-table, it **derives structure layouts from the target's own binaries** (public symbols
-where available, signature-based recovery where not), so it keeps producing correct
-results on builds it has never encountered.
+## The problem
 
-## Who it's for
+Forensic and IR tooling that interprets Windows memory and offline artifacts depends on
+*undocumented* internal structures. Microsoft reorders, resizes, and inserts fields in
+those structures between builds, so the usual approach — a static table of per-build
+field offsets — breaks the moment a new build ships. The analyst gets empty or wrong
+output and has to wait for someone to reverse the new layout by hand and patch a table.
 
-Incident responders and forensic analysts who need to parse memory captures and offline
-Windows artifacts reliably across heterogeneous, patched fleets — and authorized
-penetration testers validating credential-hygiene findings during engagements.
-
-> **Scope & use:** This is defensive/forensic research tooling intended for systems you
-> own or are explicitly authorized to analyze (lab VMs, IR engagements, pentests with a
-> signed scope). It is not an operational offensive implant and ships no payload,
-> injection, or process-access component.
-
-## Design at a glance
+**StructHound's core idea:** don't store offsets, store *types* and **compute** offsets.
+Even when Microsoft inserts a field, recomputing from type information yields the correct
+layout — including on a build the tool has never seen.
 
 ```
-input artifact ──▶ structure recovery ──▶ typed view ──▶ decryption ──▶ report
- (dump / hive)      (symbols or sigs)      (parsed)      (DPAPI/etc.)   (JSON/CLI)
+            insert an 8-byte field between builds...
+build 22621:  Flags(0)  Handle(8)   Count(16)                 size 24
+build 26100:  Flags(0)  Extra(8)    Handle(16)  Count(24)     size 32
+                                     ^^^^^^^^^^  ^^^^^^^^
+hardcoded offset table (built for 22621):   BROKEN on 26100
+StructHound (computes from types):          correct on both
 ```
 
-- **recover/** — determine structure layouts for the target build (symbol-driven first,
-  signature-based fallback). The core engineering differentiator.
-- **artifacts/** — readers for the supported offline artifact formats.
-- **crypto/** — the documented Windows key-protection primitives needed to interpret
-  protected values.
-- **providers/** — per-structure interpreters that turn raw bytes into typed results.
-- **report/** — JSON and human-readable output.
-- **cli.py** — entry point.
+## Install
 
-## Status
+```bash
+git clone <your-fork-url> structhound
+cd structhound
+pip install -e ".[dev]"
+```
 
-- **M1 (done):** minidump container reader, format detection, JSON/console reports —
-  `structhound parse <artifact>`.
-- **M2 (done):** the layout-recovery engine — computes struct field offsets from type
-  information (so it adapts across Windows builds) instead of trusting a static offset
-  table; `structhound layout <struct> --symbols <types.json>`. Try
-  `python examples/demo_across_builds.py` for the before/after.
-- **M3 (done):** signature-based fallback for when symbols are unavailable — recovers
-  offsets from instruction displacements in code, with a confidence score, behind the
-  resolver chain symbol -> hardcoded -> signature;
-  `structhound layout <struct> --signatures <sigs.json> --code <blob>`. Try
-  `python examples/demo_signature.py`.
-- **M4 (done):** a second artifact source — a Windows registry hive (regf) reader that
-  enumerates the key tree and values (`structhound parse SOFTWARE`) — and a second,
-  more complex struct proving the layout engine generalizes across structures and
-  architectures.
+Pure standard library — no runtime dependencies. Python 3.10+.
 
-Type information currently comes from a JSON type-description file — the format a native
-PDB/DIA extraction step would emit. A PDB backend is the next increment and only has to
-implement the `SymbolSource` interface, so nothing downstream changes.
+## Quickstart
 
-See `docs/DESIGN.md` for the architecture writeup and roadmap.
+Three self-contained demos, no real data required:
+
+```bash
+python examples/demo_across_builds.py   # why computed offsets beat a static table
+python examples/demo_signature.py        # recovering offsets with no symbols at all
+pytest -q                                # the full test suite (synthetic fixtures)
+```
+
+### Parse an artifact
+
+```bash
+structhound parse capture.dmp            # minidump: identify + enumerate modules
+structhound parse SOFTWARE               # registry hive: walk the key tree
+structhound parse capture.dmp --json -   # machine-readable output
+```
+
+### Resolve a structure's layout
+
+```bash
+# From type information (exact, build-resilient):
+structhound layout EXAMPLE_STRUCT --symbols examples/example_build_26100.json
+
+# From code, when no symbols exist (confidence-scored):
+structhound layout EXAMPLE_STRUCT --signatures sigs.json --code module.bin
+```
+
+Example output:
+
+```
+Struct   : EXAMPLE_STRUCT  [x64]
+Size     : 32 bytes (align 8)
+Source   : symbol (confidence 1.00) - computed from type information for build 26100
+
+    offset    size  field
+         0       4  Flags
+         8       8  Extra
+        16       8  Handle
+        24       4  Count
+```
+
+## How it works
+
+```
+input artifact ──▶ structure recovery ──▶ typed view ──▶ report
+ (dump / hive)      (symbol | signature)   (offsets)      (JSON / console)
+```
+
+**Layout-recovery engine** (`structhound/recover/`). A small C/MSVC struct-layout engine
+computes field offsets by applying natural-alignment rules — handling nested structs,
+fixed arrays, pointer sizes per architecture, and `#pragma pack`. Three providers feed
+it, tried in order of trust by `LayoutResolver`:
+
+1. **Symbol-driven** — computes offsets from type information (a `SymbolSource`). Exact,
+   and adapts across builds. Today types come from a JSON type-description file; a native
+   PDB/DIA backend is a drop-in that implements the same interface.
+2. **Hardcoded table** — the legacy baseline, kept as a fallback. Exact only for builds
+   explicitly in the table.
+3. **Signature-based** — when no symbols exist, scans code for instruction patterns and
+   reads offsets out of the encoded displacements (e.g. `mov rax,[rcx+0x10]` → `0x10`).
+
+**Provenance on everything.** Every resolved layout reports which method produced it and
+a confidence score, so an analyst never has to guess whether output is trustworthy.
+Signature recovery is never treated as certain (capped at 0.95) and its confidence rises
+with agreement across matches and corroboration by independent signatures.
+
+**Artifact readers** (`structhound/artifacts/`). Format detection is by magic bytes.
+Supported today:
+
+| Format | What it reads |
+|---|---|
+| Minidump (`.dmp`) | Header, stream directory, module list with versions |
+| Registry hive (regf) | Key tree (nk/vk, lf/lh/li/ri lists), common value types |
+
+## Limitations & roadmap
+
+- Type information currently comes from a JSON file; a **native PDB/DIA symbol backend**
+  is the next increment (same `SymbolSource` interface).
+- Hive reader does not yet handle big-data (`db`) values or transaction logs.
+- Signature scanning is a straightforward linear scan — fine for triage, not yet tuned
+  for very large modules.
+
+See `docs/DESIGN.md` for the full architecture writeup and `CHANGELOG.md` for milestones.
+
+## Scope & ethics
+
+This is defensive/forensic research tooling for systems you own or are explicitly
+authorized to analyze (lab VMs, IR engagements, pentests with a signed scope). It ships
+**no** acquisition, injection, or process-access component — input is always a
+pre-existing, authorized artifact file. All test data is synthesized in the suite; no
+real captured data is included.
 
 ## License
 
-TBD (see `LICENSE`).
+MIT — see `LICENSE`.

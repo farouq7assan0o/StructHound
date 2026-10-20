@@ -12,7 +12,6 @@ from structhound.recover.types import (
     Struct,
 )
 
-
 # --- layout engine -------------------------------------------------------------
 
 def test_natural_alignment_and_tail_padding():

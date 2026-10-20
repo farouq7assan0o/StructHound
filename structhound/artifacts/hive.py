@@ -53,7 +53,7 @@ class Value:
 class KeyNode:
     name: str
     values: list[Value] = field(default_factory=list)
-    subkeys: list["KeyNode"] = field(default_factory=list)
+    subkeys: list[KeyNode] = field(default_factory=list)
     truncated: bool = False  # subkeys omitted due to depth/count limits
 
 

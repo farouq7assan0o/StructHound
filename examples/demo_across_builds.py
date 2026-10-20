@@ -21,7 +21,7 @@ import sys
 # installing the package first.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from structhound.recover import engine, symbols  # noqa: E402
+from structhound.recover import engine, symbols
 
 HERE = os.path.dirname(__file__)
 MODULE = "example.dll"

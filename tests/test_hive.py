@@ -4,7 +4,6 @@ import pytest
 
 from structhound import artifacts
 from structhound.artifacts import hive
-
 from tests._fixtures import build_hive
 
 
